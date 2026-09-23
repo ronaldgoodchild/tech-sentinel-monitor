@@ -70,7 +70,13 @@ jobs:
         run: |
           cp .env.example .env
           docker compose up -d --build
-          sleep 15
+          # Wait for both services instead of guessing with a fixed sleep (a busy runner can be slow)
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health >/dev/null && curl -sf http://localhost:8001/health >/dev/null; then
+              echo "services healthy after $((i*3))s"; break
+            fi
+            sleep 3
+          done
       - name: Health check
         run: |
           curl -f http://localhost:8000/health

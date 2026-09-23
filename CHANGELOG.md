@@ -3,6 +3,7 @@
 Reconstructed from the original development history (April 2026).
 
 ## [Unreleased]
+- CI: integration test now waits for the API and status page to be healthy (up to 3 minutes) instead of a fixed 15-second sleep, which made it flaky on busy runners
 - Fix: demo layout's Backup Agent monitor used `timeout_seconds: 600` (API maximum is 120), which made the CI integration test fail
 - Security: Windows standalone edition no longer ships a hard-coded JWT signing secret; it uses TS_JWT_SECRET or a random per-install secret generated on first run
 - Fix: `ts-provisioner validate` crashed (`missing 1 required positional argument: 'ctx'`) - added `@click.pass_context`
