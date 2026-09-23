@@ -96,7 +96,7 @@ def main():
         {"name": "PostgreSQL", "monitor_type": "tcp", "target": "db.acme-corp.example.com:5432", "external_id": "acme-postgres"},
         {"name": "Redis", "monitor_type": "tcp", "target": "redis.acme-corp.example.com:6379", "external_id": "acme-redis"},
         {"name": "Mail Server", "monitor_type": "ping", "target": "mail.acme-corp.example.com", "external_id": "acme-mail"},
-        {"name": "Backup Agent", "monitor_type": "heartbeat", "target": "backup-agent", "external_id": "acme-backup", "timeout_seconds": 600},
+        {"name": "Backup Agent", "monitor_type": "heartbeat", "target": "backup-agent", "external_id": "acme-backup", "timeout_seconds": 120},
     ]
 
     monitor_ids = {}
