@@ -4,6 +4,11 @@
 
 A self-hostable monitoring system that provides HTTP, TCP, ping, and heartbeat probes with real-time alerting via webhooks, Slack, PagerDuty, and custom automation endpoints.
 
+## Screenshots
+
+![Windows standalone edition: services running with the demo layout loaded](docs/screenshots/windows-app.png)
+*Windows standalone edition: services running with the demo layout loaded*
+
 ## Two ways to run it
 
 | Edition | What it is | Start here |

@@ -1,224 +1,144 @@
 {
   "tenant": {
     "name": "Example Home Lab",
-    "slug": "regteches"
+    "slug": "example-lab"
   },
   "monitors": [
     {
-      "name": "DS420J NAS - Ping",
+      "name": "Cloudflare DNS - Ping",
       "monitor_type": "ping",
-      "target": "192.168.1.248",
+      "target": "1.1.1.1",
       "interval_seconds": 60,
       "timeout_seconds": 10,
-      "external_id": "ds420j-ping"
+      "external_id": "cloudflare-ping"
     },
     {
-      "name": "DS420J NAS - Web UI",
-      "monitor_type": "http",
-      "target": "http://192.168.1.248:5000",
-      "interval_seconds": 120,
+      "name": "Cloudflare DNS - HTTPS",
+      "monitor_type": "tcp",
+      "target": "1.1.1.1:443",
+      "interval_seconds": 60,
       "timeout_seconds": 10,
-      "external_id": "ds420j-http",
-      "config": { "method": "GET", "expected_status": 200 }
+      "external_id": "cloudflare-https"
     },
     {
-      "name": "DS420J NAS - SMB",
-      "monitor_type": "tcp",
-      "target": "192.168.1.248:445",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "ds420j-smb"
-    },
-    {
-      "name": "DS420J NAS - HTTPS",
-      "monitor_type": "tcp",
-      "target": "192.168.1.248:5001",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "ds420j-https"
-    },
-    {
-      "name": "DS1512 NAS - Ping",
+      "name": "Google DNS - Ping",
       "monitor_type": "ping",
-      "target": "192.168.1.208",
+      "target": "8.8.8.8",
       "interval_seconds": 60,
       "timeout_seconds": 10,
-      "external_id": "ds1512-ping"
+      "external_id": "google-dns-ping"
     },
     {
-      "name": "DS1512 NAS - Web UI",
-      "monitor_type": "http",
-      "target": "http://192.168.1.208:5000",
-      "interval_seconds": 120,
+      "name": "Google DNS - HTTPS",
+      "monitor_type": "tcp",
+      "target": "8.8.8.8:443",
+      "interval_seconds": 60,
       "timeout_seconds": 10,
-      "external_id": "ds1512-http",
-      "config": { "method": "GET", "expected_status": 200 }
+      "external_id": "google-dns-https"
     },
     {
-      "name": "DS1512 NAS - SMB",
-      "monitor_type": "tcp",
-      "target": "192.168.1.208:445",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "ds1512-smb"
-    },
-    {
-      "name": "DS1512 NAS - FTPS",
-      "monitor_type": "tcp",
-      "target": "192.168.1.208:990",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "ds1512-ftps"
-    },
-    {
-      "name": "ZimaOS NAS - Ping",
+      "name": "Quad9 DNS - Ping",
       "monitor_type": "ping",
-      "target": "192.168.1.240",
+      "target": "9.9.9.9",
       "interval_seconds": 60,
       "timeout_seconds": 10,
-      "external_id": "zima-ping"
+      "external_id": "quad9-ping"
     },
     {
-      "name": "ZimaOS NAS - Web UI",
+      "name": "Quad9 DNS - HTTPS",
+      "monitor_type": "tcp",
+      "target": "9.9.9.9:443",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "quad9-https"
+    },
+    {
+      "name": "GitHub - Website",
       "monitor_type": "http",
-      "target": "http://192.168.1.240",
+      "target": "https://github.com",
       "interval_seconds": 120,
       "timeout_seconds": 10,
-      "external_id": "zima-http",
-      "config": { "method": "GET", "expected_status": 200 }
+      "external_id": "github-http",
+      "config": {
+        "method": "GET",
+        "expected_status": 200
+      }
     },
     {
-      "name": "ZimaOS NAS - SMB",
+      "name": "GitHub - SSH",
       "monitor_type": "tcp",
-      "target": "192.168.1.240:445",
+      "target": "github.com:22",
       "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "zima-smb"
+      "timeout_seconds": 10,
+      "external_id": "github-ssh"
     },
     {
-      "name": "Plex Media Server - Ping",
+      "name": "Example.com - Website",
+      "monitor_type": "http",
+      "target": "https://example.com",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "example-http",
+      "config": {
+        "method": "GET",
+        "expected_status": 200
+      }
+    },
+    {
+      "name": "Wikipedia - Website",
+      "monitor_type": "http",
+      "target": "https://www.wikipedia.org",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "wikipedia-http",
+      "config": {
+        "method": "GET",
+        "expected_status": 200
+      }
+    },
+    {
+      "name": "Python.org - Website",
+      "monitor_type": "http",
+      "target": "https://www.python.org",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "python-http",
+      "config": {
+        "method": "GET",
+        "expected_status": 200
+      }
+    },
+    {
+      "name": "PyPI - Website",
+      "monitor_type": "http",
+      "target": "https://pypi.org",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "pypi-http",
+      "config": {
+        "method": "GET",
+        "expected_status": 200
+      }
+    },
+    {
+      "name": "Debian Mirror - Website",
+      "monitor_type": "http",
+      "target": "https://deb.debian.org",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "debian-http",
+      "config": {
+        "method": "GET",
+        "expected_status": 200
+      }
+    },
+    {
+      "name": "Localhost - Ping",
       "monitor_type": "ping",
-      "target": "192.168.1.161",
+      "target": "127.0.0.1",
       "interval_seconds": 60,
       "timeout_seconds": 10,
-      "external_id": "plex-ping"
-    },
-    {
-      "name": "Plex Media Server - Web UI",
-      "monitor_type": "http",
-      "target": "http://192.168.1.161:32400/web",
-      "interval_seconds": 60,
-      "timeout_seconds": 10,
-      "external_id": "plex-http",
-      "config": { "method": "GET", "expected_status": 200 }
-    },
-    {
-      "name": "Plex - SMB",
-      "monitor_type": "tcp",
-      "target": "192.168.1.161:445",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "plex-smb"
-    },
-    {
-      "name": "Plex - RDP",
-      "monitor_type": "tcp",
-      "target": "192.168.1.161:3389",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "plex-rdp"
-    },
-    {
-      "name": "Sonarr",
-      "monitor_type": "http",
-      "target": "http://192.168.1.161:8989",
-      "interval_seconds": 120,
-      "timeout_seconds": 10,
-      "external_id": "sonarr-http",
-      "config": { "method": "GET", "expected_status": 200 }
-    },
-    {
-      "name": "Radarr",
-      "monitor_type": "http",
-      "target": "http://192.168.1.161:7878",
-      "interval_seconds": 120,
-      "timeout_seconds": 10,
-      "external_id": "radarr-http",
-      "config": { "method": "GET", "expected_status": 200 }
-    },
-    {
-      "name": "Lidarr",
-      "monitor_type": "http",
-      "target": "http://192.168.1.161:8686",
-      "interval_seconds": 120,
-      "timeout_seconds": 10,
-      "external_id": "lidarr-http",
-      "config": { "method": "GET", "expected_status": 200 }
-    },
-    {
-      "name": "SABnzbd",
-      "monitor_type": "http",
-      "target": "http://192.168.1.161:8080",
-      "interval_seconds": 120,
-      "timeout_seconds": 10,
-      "external_id": "sabnzbd-http",
-      "config": { "method": "GET", "expected_status": 200 }
-    },
-    {
-      "name": "Dell Proxmox Server - Ping",
-      "monitor_type": "ping",
-      "target": "dell.regteches.com",
-      "interval_seconds": 60,
-      "timeout_seconds": 10,
-      "external_id": "dell-proxmox-ping"
-    },
-    {
-      "name": "Hikvision Cameras - Ping",
-      "monitor_type": "ping",
-      "target": "192.168.1.80",
-      "interval_seconds": 60,
-      "timeout_seconds": 10,
-      "external_id": "hikvision-ping"
-    },
-    {
-      "name": "HP3 Proxmox Server - Ping",
-      "monitor_type": "ping",
-      "target": "192.168.1.87",
-      "interval_seconds": 60,
-      "timeout_seconds": 10,
-      "external_id": "hp3-proxmox-ping"
-    },
-    {
-      "name": "HP3 Proxmox - Web UI",
-      "monitor_type": "tcp",
-      "target": "192.168.1.87:8006",
-      "interval_seconds": 120,
-      "timeout_seconds": 10,
-      "external_id": "hp3-proxmox-web"
-    },
-    {
-      "name": "Ron's Main PC - Ping",
-      "monitor_type": "ping",
-      "target": "192.168.1.121",
-      "interval_seconds": 60,
-      "timeout_seconds": 10,
-      "external_id": "ron-main-ping"
-    },
-    {
-      "name": "Ron's Main PC - RDP",
-      "monitor_type": "tcp",
-      "target": "192.168.1.121:3389",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "ron-main-rdp"
-    },
-    {
-      "name": "Ron's Main PC - SMB",
-      "monitor_type": "tcp",
-      "target": "192.168.1.121:445",
-      "interval_seconds": 120,
-      "timeout_seconds": 5,
-      "external_id": "ron-main-smb"
+      "external_id": "localhost-ping"
     }
   ],
   "alert_channels": [
@@ -233,18 +153,24 @@
   ],
   "status_pages": [
     {
-      "name": "REGTeches Network Status",
-      "slug": "regteches-status",
-      "external_id": "regteches-status-page",
+      "name": "Example Network Status",
+      "slug": "example-status",
+      "external_id": "example-status-page",
       "monitor_refs": [
-        "ds420j-ping", "ds420j-http", "ds420j-smb", "ds420j-https",
-        "ds1512-ping", "ds1512-http", "ds1512-smb", "ds1512-ftps",
-        "zima-ping", "zima-http", "zima-smb",
-        "plex-ping", "plex-http", "plex-smb", "plex-rdp",
-        "sonarr-http", "radarr-http", "lidarr-http", "sabnzbd-http",
-        "dell-proxmox-ping", "hikvision-ping",
-        "hp3-proxmox-ping", "hp3-proxmox-web",
-        "ron-main-ping", "ron-main-rdp", "ron-main-smb"
+        "cloudflare-ping",
+        "cloudflare-https",
+        "google-dns-ping",
+        "google-dns-https",
+        "quad9-ping",
+        "quad9-https",
+        "github-http",
+        "github-ssh",
+        "example-http",
+        "wikipedia-http",
+        "python-http",
+        "pypi-http",
+        "debian-http",
+        "localhost-ping"
       ],
       "theme": {
         "bg_primary": "#0f1117",
