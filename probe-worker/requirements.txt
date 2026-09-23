@@ -1,4 +1,4 @@
 asyncpg>=0.31.0,<1.0
 redis>=5.0,<6.0
 httpx>=0.28.1,<1.0
-pydantic-settings>=2.2,<3.0
+pydantic-settings>=2.15.0,<3.0
