@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tech-sentinel.fullname" . }}-status-page
+  labels:
+    {{- include "tech-sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: status-page
+spec:
+  replicas: {{ .Values.replicaCount.statusPage }}
+  selector:
+    matchLabels:
+      {{- include "tech-sentinel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: status-page
+  template:
+    metadata:
+      labels:
+        {{- include "tech-sentinel.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: status-page
+    spec:
+      containers:
+        - name: status-page
+          image: "{{ .Values.image.statusPage.repository }}:{{ .Values.image.statusPage.tag }}"
+          imagePullPolicy: {{ .Values.image.statusPage.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.statusPage.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "tech-sentinel.fullname" . }}-config
+            - secretRef:
+                name: {{ include "tech-sentinel.fullname" . }}-secrets
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.statusPage.path }}
+              port: {{ .Values.healthCheck.statusPage.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.statusPage.path }}
+              port: {{ .Values.healthCheck.statusPage.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.statusPage | nindent 12 }}

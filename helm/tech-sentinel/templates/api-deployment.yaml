@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tech-sentinel.fullname" . }}-api
+  labels:
+    {{- include "tech-sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.replicaCount.api }}
+  selector:
+    matchLabels:
+      {{- include "tech-sentinel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "tech-sentinel.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+          imagePullPolicy: {{ .Values.image.api.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.api.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "tech-sentinel.fullname" . }}-config
+            - secretRef:
+                name: {{ include "tech-sentinel.fullname" . }}-secrets
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.api.path }}
+              port: {{ .Values.healthCheck.api.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.api.path }}
+              port: {{ .Values.healthCheck.api.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.api | nindent 12 }}

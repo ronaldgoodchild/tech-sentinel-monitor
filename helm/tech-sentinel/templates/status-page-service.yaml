@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tech-sentinel.fullname" . }}-status-page
+  labels:
+    {{- include "tech-sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: status-page
+spec:
+  type: {{ .Values.service.statusPage.type }}
+  ports:
+    - port: {{ .Values.service.statusPage.port }}
+      targetPort: {{ .Values.service.statusPage.port }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "tech-sentinel.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: status-page

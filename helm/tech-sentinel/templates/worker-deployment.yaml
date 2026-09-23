@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tech-sentinel.fullname" . }}-worker
+  labels:
+    {{- include "tech-sentinel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.replicaCount.worker }}
+  selector:
+    matchLabels:
+      {{- include "tech-sentinel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "tech-sentinel.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      containers:
+        - name: worker
+          image: "{{ .Values.image.worker.repository }}:{{ .Values.image.worker.tag }}"
+          imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "tech-sentinel.fullname" . }}-config
+            - secretRef:
+                name: {{ include "tech-sentinel.fullname" . }}-secrets
+          resources:
+            {{- toYaml .Values.resources.worker | nindent 12 }}

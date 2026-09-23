@@ -1,0 +1,85 @@
+name: Tech Sentinel Monitor CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check control-plane/ probe-worker/ provisioner/ tests/
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r control-plane/requirements.txt
+          pip install -r probe-worker/requirements.txt
+          pip install -e provisioner/
+          pip install pytest pytest-asyncio
+      - name: Run tests
+        run: |
+          PYTHONPATH=control-plane:probe-worker:provisioner pytest tests/ -v
+        env:
+          POSTGRES_HOST: localhost
+          REDIS_HOST: localhost
+
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        service: [control-plane, probe-worker, status-page]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ matrix.service }}
+        run: docker build -t tech-sentinel/${{ matrix.service }}:${{ github.sha }} ./${{ matrix.service }}
+
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint helm/tech-sentinel/
+
+  integration:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start services
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+          sleep 15
+      - name: Health check
+        run: |
+          curl -f http://localhost:8000/health
+          curl -f http://localhost:8001/health
+      - name: Run demo provision
+        run: |
+          pip install -e provisioner/
+          pip install httpx
+          python demo/demo_provision.py
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

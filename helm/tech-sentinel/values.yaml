@@ -1,0 +1,90 @@
+# Tech Sentinel Monitor — Helm Values
+
+replicaCount:
+  api: 2
+  worker: 2
+  statusPage: 1
+
+image:
+  api:
+    repository: tech-sentinel/control-plane
+    tag: latest
+    pullPolicy: IfNotPresent
+  worker:
+    repository: tech-sentinel/probe-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  statusPage:
+    repository: tech-sentinel/status-page
+    tag: latest
+    pullPolicy: IfNotPresent
+
+service:
+  api:
+    type: ClusterIP
+    port: 8000
+  statusPage:
+    type: ClusterIP
+    port: 8001
+
+ingress:
+  enabled: false
+  className: nginx
+  hosts:
+    - host: api.techsentinel.local
+      paths:
+        - path: /
+          service: api
+    - host: status.techsentinel.local
+      paths:
+        - path: /
+          service: status-page
+  tls: []
+
+database:
+  host: timescaledb
+  port: 5432
+  name: techsentinel
+  user: tsadmin
+
+redis:
+  host: redis
+  port: 6379
+
+config:
+  probeInterval: 60
+  probeConcurrency: 10
+  probeTimeout: 10
+  alertConsecutiveFailures: 3
+  jwtExpireMinutes: 60
+
+resources:
+  api:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  worker:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  statusPage:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+healthCheck:
+  api:
+    path: /health
+    port: 8000
+  statusPage:
+    path: /health
+    port: 8001

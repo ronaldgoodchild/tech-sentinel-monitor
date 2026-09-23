@@ -1,0 +1,114 @@
+{
+  "tenant": {
+    "name": "ACME Corporation",
+    "slug": "acme-corp"
+  },
+  "monitors": [
+    {
+      "name": "ACME Website",
+      "monitor_type": "http",
+      "target": "https://www.acme-corp.example.com",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "acme-website",
+      "config": {
+        "method": "GET",
+        "expected_status": 200
+      }
+    },
+    {
+      "name": "API Health",
+      "monitor_type": "http",
+      "target": "https://api.acme-corp.example.com/health",
+      "interval_seconds": 30,
+      "timeout_seconds": 5,
+      "external_id": "acme-api",
+      "config": {
+        "method": "GET",
+        "expected_status": 200,
+        "body_contains": "ok"
+      }
+    },
+    {
+      "name": "PostgreSQL",
+      "monitor_type": "tcp",
+      "target": "db.acme-corp.example.com:5432",
+      "interval_seconds": 60,
+      "timeout_seconds": 5,
+      "external_id": "acme-postgres"
+    },
+    {
+      "name": "Redis",
+      "monitor_type": "tcp",
+      "target": "redis.acme-corp.example.com:6379",
+      "interval_seconds": 60,
+      "timeout_seconds": 5,
+      "external_id": "acme-redis"
+    },
+    {
+      "name": "Mail Server",
+      "monitor_type": "ping",
+      "target": "mail.acme-corp.example.com",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "acme-mail"
+    },
+    {
+      "name": "Backup Agent",
+      "monitor_type": "heartbeat",
+      "target": "backup-agent",
+      "interval_seconds": 300,
+      "timeout_seconds": 600,
+      "external_id": "acme-backup"
+    }
+  ],
+  "alert_channels": [
+    {
+      "name": "ACME Webhook",
+      "channel_type": "webhook",
+      "external_id": "acme-webhook",
+      "config": {
+        "url": "{{ACME_WEBHOOK_URL}}"
+      }
+    },
+    {
+      "name": "ACME Slack",
+      "channel_type": "slack",
+      "external_id": "acme-slack",
+      "config": {
+        "webhook_url": "{{ACME_SLACK_WEBHOOK}}"
+      }
+    },
+    {
+      "name": "ACME PagerDuty",
+      "channel_type": "pagerduty",
+      "external_id": "acme-pagerduty",
+      "config": {
+        "routing_key": "{{ACME_PD_ROUTING_KEY}}"
+      }
+    }
+  ],
+  "status_pages": [
+    {
+      "name": "ACME Corp Status",
+      "slug": "acme-status",
+      "external_id": "acme-status-page",
+      "monitor_refs": [
+        "acme-website",
+        "acme-api",
+        "acme-postgres",
+        "acme-redis",
+        "acme-mail",
+        "acme-backup"
+      ],
+      "theme": {
+        "bg_primary": "#0f1117",
+        "bg_secondary": "#1a1d27",
+        "bg_card": "#222636",
+        "text_primary": "#e1e4ed",
+        "text_secondary": "#8b8fa3",
+        "accent": "#3b82f6"
+      }
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30">
+    <title>{{ page_name }} — Status</title>
+    <style>
+        :root {
+            --bg-primary: {{ theme.get('bg_primary', '#0f1117') }};
+            --bg-secondary: {{ theme.get('bg_secondary', '#1a1d27') }};
+            --bg-card: {{ theme.get('bg_card', '#222636') }};
+            --text-primary: {{ theme.get('text_primary', '#e1e4ed') }};
+            --text-secondary: {{ theme.get('text_secondary', '#8b8fa3') }};
+            --accent: {{ theme.get('accent', '#3b82f6') }};
+            --green: #22c55e;
+            --red: #ef4444;
+            --yellow: #f59e0b;
+            --gray: #6b7280;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        header .tenant {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .overall-status {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .overall-status .badge {
+            display: inline-block;
+            padding: 0.5rem 1.5rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .badge-operational { background: rgba(34,197,94,0.15); color: var(--green); }
+        .badge-outage { background: rgba(239,68,68,0.15); color: var(--red); }
+        .badge-degraded { background: rgba(245,158,11,0.15); color: var(--yellow); }
+        .badge-unknown { background: rgba(107,114,128,0.15); color: var(--gray); }
+
+        .monitors {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .monitor-card {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255,255,255,0.04);
+            transition: border-color 0.2s;
+        }
+
+        .monitor-card:hover {
+            border-color: var(--accent);
+        }
+
+        .monitor-info h3 {
+            font-size: 0.95rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .monitor-info .meta {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .monitor-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot-up { background: var(--green); box-shadow: 0 0 6px var(--green); }
+        .dot-down { background: var(--red); box-shadow: 0 0 6px var(--red); }
+        .dot-degraded { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+        .dot-timeout { background: var(--red); box-shadow: 0 0 6px var(--red); }
+        .dot-unknown { background: var(--gray); }
+
+        .response-time {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ page_name }}</h1>
+            <p class="tenant">{{ tenant_name }}</p>
+        </header>
+
+        <div class="overall-status">
+            {% if overall_status == "operational" %}
+                <span class="badge badge-operational">&#x2705; All Systems Operational</span>
+            {% elif overall_status == "outage" %}
+                <span class="badge badge-outage">&#x1F6A8; System Outage Detected</span>
+            {% elif overall_status == "degraded" %}
+                <span class="badge badge-degraded">&#x26A0;&#xFE0F; Degraded Performance</span>
+            {% else %}
+                <span class="badge badge-unknown">&#x2753; Status Unknown</span>
+            {% endif %}
+        </div>
+
+        <div class="monitors">
+            {% for monitor in monitors %}
+            <div class="monitor-card">
+                <div class="monitor-info">
+                    <h3>{{ monitor.name }}</h3>
+                    <span class="meta">{{ monitor.type | upper }} &middot; {{ monitor.target }}</span>
+                </div>
+                <div class="monitor-status">
+                    {% if monitor.response_time_ms is not none %}
+                        <span class="response-time">{{ "%.0f" | format(monitor.response_time_ms) }}ms</span>
+                    {% endif %}
+                    <span class="status-dot dot-{{ monitor.status }}"></span>
+                    <span style="font-size: 0.85rem; text-transform: capitalize;">{{ monitor.status }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <footer>
+            Powered by <a href="#">Tech Sentinel Monitor</a> &mdash; REGTeches<br>
+            Auto-refreshes every 30 seconds
+        </footer>
+    </div>
+</body>
+</html>

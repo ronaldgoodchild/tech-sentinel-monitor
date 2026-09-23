@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  # ── TimescaleDB ─────────────────────────────────
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-techsentinel}
+      POSTGRES_USER: ${POSTGRES_USER:-tsadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_db_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ts_data:/var/lib/postgresql/data
+      - ./control-plane/app/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tsadmin}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Redis ───────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Control Plane API ───────────────────────────
+  control-plane:
+    build: ./control-plane
+    env_file: .env
+    ports:
+      - "${TS_API_PORT:-8000}:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Probe Worker ────────────────────────────────
+  probe-worker:
+    build: ./probe-worker
+    env_file: .env
+    depends_on:
+      control-plane:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Status Page ─────────────────────────────────
+  status-page:
+    build: ./status-page
+    env_file: .env
+    ports:
+      - "${TS_STATUS_PORT:-8001}:8001"
+    depends_on:
+      control-plane:
+        condition: service_healthy
+
+volumes:
+  ts_data:

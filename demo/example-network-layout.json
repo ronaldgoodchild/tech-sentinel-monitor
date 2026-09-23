@@ -1,0 +1,259 @@
+{
+  "tenant": {
+    "name": "Example Home Lab",
+    "slug": "regteches"
+  },
+  "monitors": [
+    {
+      "name": "DS420J NAS - Ping",
+      "monitor_type": "ping",
+      "target": "192.168.1.248",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "ds420j-ping"
+    },
+    {
+      "name": "DS420J NAS - Web UI",
+      "monitor_type": "http",
+      "target": "http://192.168.1.248:5000",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "ds420j-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "DS420J NAS - SMB",
+      "monitor_type": "tcp",
+      "target": "192.168.1.248:445",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "ds420j-smb"
+    },
+    {
+      "name": "DS420J NAS - HTTPS",
+      "monitor_type": "tcp",
+      "target": "192.168.1.248:5001",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "ds420j-https"
+    },
+    {
+      "name": "DS1512 NAS - Ping",
+      "monitor_type": "ping",
+      "target": "192.168.1.208",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "ds1512-ping"
+    },
+    {
+      "name": "DS1512 NAS - Web UI",
+      "monitor_type": "http",
+      "target": "http://192.168.1.208:5000",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "ds1512-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "DS1512 NAS - SMB",
+      "monitor_type": "tcp",
+      "target": "192.168.1.208:445",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "ds1512-smb"
+    },
+    {
+      "name": "DS1512 NAS - FTPS",
+      "monitor_type": "tcp",
+      "target": "192.168.1.208:990",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "ds1512-ftps"
+    },
+    {
+      "name": "ZimaOS NAS - Ping",
+      "monitor_type": "ping",
+      "target": "192.168.1.240",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "zima-ping"
+    },
+    {
+      "name": "ZimaOS NAS - Web UI",
+      "monitor_type": "http",
+      "target": "http://192.168.1.240",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "zima-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "ZimaOS NAS - SMB",
+      "monitor_type": "tcp",
+      "target": "192.168.1.240:445",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "zima-smb"
+    },
+    {
+      "name": "Plex Media Server - Ping",
+      "monitor_type": "ping",
+      "target": "192.168.1.161",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "plex-ping"
+    },
+    {
+      "name": "Plex Media Server - Web UI",
+      "monitor_type": "http",
+      "target": "http://192.168.1.161:32400/web",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "plex-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "Plex - SMB",
+      "monitor_type": "tcp",
+      "target": "192.168.1.161:445",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "plex-smb"
+    },
+    {
+      "name": "Plex - RDP",
+      "monitor_type": "tcp",
+      "target": "192.168.1.161:3389",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "plex-rdp"
+    },
+    {
+      "name": "Sonarr",
+      "monitor_type": "http",
+      "target": "http://192.168.1.161:8989",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "sonarr-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "Radarr",
+      "monitor_type": "http",
+      "target": "http://192.168.1.161:7878",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "radarr-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "Lidarr",
+      "monitor_type": "http",
+      "target": "http://192.168.1.161:8686",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "lidarr-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "SABnzbd",
+      "monitor_type": "http",
+      "target": "http://192.168.1.161:8080",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "sabnzbd-http",
+      "config": { "method": "GET", "expected_status": 200 }
+    },
+    {
+      "name": "Dell Proxmox Server - Ping",
+      "monitor_type": "ping",
+      "target": "dell.regteches.com",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "dell-proxmox-ping"
+    },
+    {
+      "name": "Hikvision Cameras - Ping",
+      "monitor_type": "ping",
+      "target": "192.168.1.80",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "hikvision-ping"
+    },
+    {
+      "name": "HP3 Proxmox Server - Ping",
+      "monitor_type": "ping",
+      "target": "192.168.1.87",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "hp3-proxmox-ping"
+    },
+    {
+      "name": "HP3 Proxmox - Web UI",
+      "monitor_type": "tcp",
+      "target": "192.168.1.87:8006",
+      "interval_seconds": 120,
+      "timeout_seconds": 10,
+      "external_id": "hp3-proxmox-web"
+    },
+    {
+      "name": "Ron's Main PC - Ping",
+      "monitor_type": "ping",
+      "target": "192.168.1.121",
+      "interval_seconds": 60,
+      "timeout_seconds": 10,
+      "external_id": "ron-main-ping"
+    },
+    {
+      "name": "Ron's Main PC - RDP",
+      "monitor_type": "tcp",
+      "target": "192.168.1.121:3389",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "ron-main-rdp"
+    },
+    {
+      "name": "Ron's Main PC - SMB",
+      "monitor_type": "tcp",
+      "target": "192.168.1.121:445",
+      "interval_seconds": 120,
+      "timeout_seconds": 5,
+      "external_id": "ron-main-smb"
+    }
+  ],
+  "alert_channels": [
+    {
+      "name": "REGTeches Webhook",
+      "channel_type": "webhook",
+      "external_id": "regteches-webhook",
+      "config": {
+        "url": "{{REGTECHES_WEBHOOK_URL}}"
+      }
+    }
+  ],
+  "status_pages": [
+    {
+      "name": "REGTeches Network Status",
+      "slug": "regteches-status",
+      "external_id": "regteches-status-page",
+      "monitor_refs": [
+        "ds420j-ping", "ds420j-http", "ds420j-smb", "ds420j-https",
+        "ds1512-ping", "ds1512-http", "ds1512-smb", "ds1512-ftps",
+        "zima-ping", "zima-http", "zima-smb",
+        "plex-ping", "plex-http", "plex-smb", "plex-rdp",
+        "sonarr-http", "radarr-http", "lidarr-http", "sabnzbd-http",
+        "dell-proxmox-ping", "hikvision-ping",
+        "hp3-proxmox-ping", "hp3-proxmox-web",
+        "ron-main-ping", "ron-main-rdp", "ron-main-smb"
+      ],
+      "theme": {
+        "bg_primary": "#0f1117",
+        "bg_secondary": "#1a1d27",
+        "bg_card": "#222636",
+        "text_primary": "#e1e4ed",
+        "text_secondary": "#8b8fa3",
+        "accent": "#3b82f6"
+      }
+    }
+  ]
+}
