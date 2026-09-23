@@ -6,6 +6,9 @@ A self-hostable monitoring system that provides HTTP, TCP, ping, and heartbeat p
 
 ## Screenshots
 
+![Demo](docs/screenshots/demo.gif)
+*Windows standalone edition: start the services, load the demo layout, watch the checks come in*
+
 ![Windows standalone edition: services running with the demo layout loaded](docs/screenshots/windows-app.png)
 *Windows standalone edition: services running with the demo layout loaded*
 
