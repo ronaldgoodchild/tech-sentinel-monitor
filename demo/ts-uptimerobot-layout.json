@@ -58,7 +58,7 @@
       "monitor_type": "heartbeat",
       "target": "backup-agent",
       "interval_seconds": 300,
-      "timeout_seconds": 600,
+      "timeout_seconds": 120,
       "external_id": "acme-backup"
     }
   ],

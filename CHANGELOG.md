@@ -3,6 +3,7 @@
 Reconstructed from the original development history (April 2026).
 
 ## [Unreleased]
+- Fix: demo layout's Backup Agent monitor used `timeout_seconds: 600` (API maximum is 120), which made the CI integration test fail
 - Security: Windows standalone edition no longer ships a hard-coded JWT signing secret; it uses TS_JWT_SECRET or a random per-install secret generated on first run
 - Fix: `ts-provisioner validate` crashed (`missing 1 required positional argument: 'ctx'`) - added `@click.pass_context`
 - Fix: recovery-notification test patched the wrong module; all 44 tests pass
