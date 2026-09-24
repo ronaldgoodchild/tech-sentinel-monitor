@@ -2,6 +2,7 @@
 
 
 import pytest
+from pydantic import ValidationError
 
 
 class TestMonitorSchemas:
@@ -48,7 +49,7 @@ class TestMonitorSchemas:
 
     def test_invalid_monitor_type(self):
         from app.schemas import MonitorCreate
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             MonitorCreate(
                 name="Bad Monitor",
                 monitor_type="invalid",
@@ -58,10 +59,10 @@ class TestMonitorSchemas:
     def test_interval_bounds(self):
         from app.schemas import MonitorCreate
         # Too low
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             MonitorCreate(name="X", monitor_type="http", target="x.com", interval_seconds=5)
         # Too high
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             MonitorCreate(name="X", monitor_type="http", target="x.com", interval_seconds=9999)
 
     def test_monitor_with_config(self):
@@ -81,5 +82,5 @@ class TestMonitorSchemas:
 
     def test_status_update_invalid(self):
         from app.schemas import MonitorStatusUpdate
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             MonitorStatusUpdate(status="deleted")
