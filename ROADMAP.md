@@ -4,7 +4,7 @@ Comment on (or open) an issue first so we don't duplicate work.
 
 ## Good first issues
 - [x] Add screenshots of the dashboard and a status page to the README
-- [ ] Tighten the `pytest.raises(Exception)` assertions in `tests/test_monitors_crud.py` to specific exception types
+- [x] Tighten the `pytest.raises(Exception)` assertions in `tests/test_monitors_crud.py` to specific exception types
 - [ ] Split `windows/launcher.py` (80 KB) and `windows/local_status_page.py` (98 KB) into smaller modules
 - [ ] Add type hints and a `py.typed` marker to the provisioner
 - [ ] Publish the provisioner to PyPI
