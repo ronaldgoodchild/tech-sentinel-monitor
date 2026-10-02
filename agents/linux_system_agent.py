@@ -654,6 +654,8 @@ def _ts_download(path: str) -> dict:
         size = os.path.getsize(path)
         if size > 10 * 1024 * 1024:
             return {"error": f"File too large: {size / (1024*1024):.1f} MB (max 10 MB)"}
+        if ".." in path:
+            return {"error": "Invalid file path"}
         with open(path, "rb") as f:
             content = base64.b64encode(f.read()).decode("ascii")
         return {"path": path, "filename": os.path.basename(path), "size": size,
