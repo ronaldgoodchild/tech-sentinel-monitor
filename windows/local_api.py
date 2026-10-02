@@ -661,11 +661,15 @@ def create_app() -> FastAPI:
             os.environ.get("LOCALAPPDATA", "."), "TechSentinelMonitor", "file_storage"
         )
         file_path = os.path.join(storage_dir, record["filename"])
-        if not os.path.exists(file_path):
+        storage_dir_real = os.path.realpath(storage_dir)
+        file_path_real = os.path.realpath(file_path)
+        if os.path.commonpath([storage_dir_real, file_path_real]) != storage_dir_real:
+            raise HTTPException(400, "Invalid file path")
+        if not os.path.exists(file_path_real):
             raise HTTPException(404, "File not found on disk")
         increment_download_count(file_id)
         return FileResponse(
-            path=file_path,
+            path=file_path_real,
             filename=record["original_name"],
             media_type=record.get("mime_type", "application/octet-stream"),
         )
