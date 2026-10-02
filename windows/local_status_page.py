@@ -8,9 +8,78 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi import FastAPI, Request, Form, HTTPException, Cookie, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from windows.local_version_control import APP_VERSION
+import secrets
+import time
+from collections import defaultdict
+import threading
+
+
+# ── Authentication & Rate Limiting ───────────────────────────────────────────
+
+# Simple session-based authentication for management endpoints
+# In production, this should use proper authentication (OAuth, LDAP, etc.)
+_session_tokens = set()
+_session_lock = threading.Lock()
+
+# Default admin password (should be changed on first use)
+# In production, this should be stored securely and hashed
+ADMIN_PASSWORD = os.environ.get("TS_ADMIN_PASSWORD", "admin")
+
+# Rate limiting for monitor creation to prevent rapid exhaustion attacks
+_rate_limit_lock = threading.Lock()
+_rate_limit_data = defaultdict(list)  # IP -> list of timestamps
+RATE_LIMIT_WINDOW = 60  # seconds
+RATE_LIMIT_MAX_REQUESTS = 10  # max monitor creations per window
+
+
+def generate_session_token() -> str:
+    """Generate a secure session token."""
+    token = secrets.token_urlsafe(32)
+    with _session_lock:
+        _session_tokens.add(token)
+    return token
+
+
+def validate_session_token(token: str | None) -> bool:
+    """Validate a session token."""
+    if not token:
+        return False
+    with _session_lock:
+        return token in _session_tokens
+
+
+def check_rate_limit(client_ip: str) -> bool:
+    """Check if client has exceeded rate limit for monitor creation.
+    
+    Returns True if request is allowed, False if rate limit exceeded.
+    """
+    now = time.time()
+    with _rate_limit_lock:
+        # Clean up old entries
+        _rate_limit_data[client_ip] = [
+            ts for ts in _rate_limit_data[client_ip]
+            if now - ts < RATE_LIMIT_WINDOW
+        ]
+        
+        # Check if limit exceeded
+        if len(_rate_limit_data[client_ip]) >= RATE_LIMIT_MAX_REQUESTS:
+            return False
+        
+        # Record this request
+        _rate_limit_data[client_ip].append(now)
+        return True
+
+
+def require_auth(session_token: str | None = Cookie(None)):
+    """Dependency to require authentication for management endpoints."""
+    if not validate_session_token(session_token):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please log in to access management features."
+        )
 
 
 # ── Shared CSS ───────────────────────────────────────────────────────────────
@@ -229,6 +298,107 @@ def create_status_app() -> FastAPI:
     @app.get("/health")
     async def health():
         return {"status": "ok", "service": "status-page-local"}
+
+    # ── Authentication Endpoints ──────────────────────────────────────────
+    @app.get("/login", response_class=HTMLResponse)
+    async def login_page(redirect: str = "/manage"):
+        """Login page for management access."""
+        return f"""<!DOCTYPE html>
+<html><head>
+<title>Login — Tech Sentinel Monitor</title>
+<style>
+  body {{ font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4ed; 
+         margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+  .login-card {{ background: #1a1d27; border-radius: 12px; padding: 2rem; 
+                 max-width: 400px; width: 100%; border: 1px solid #333750; }}
+  h1 {{ color: #3b82f6; text-align: center; margin-bottom: 1.5rem; }}
+  .form-group {{ margin-bottom: 1rem; }}
+  label {{ display: block; font-size: 0.85rem; color: #8b8fa3; margin-bottom: 0.3rem; }}
+  input {{ width: 100%; background: #0f1117; border: 1px solid #333750; border-radius: 6px;
+           color: #e1e4ed; padding: 0.6rem 0.8rem; font-size: 0.95rem; box-sizing: border-box; }}
+  input:focus {{ border-color: #3b82f6; outline: none; }}
+  button {{ width: 100%; background: #3b82f6; color: white; border: none; border-radius: 6px;
+            padding: 0.7rem; font-size: 1rem; font-weight: 600; cursor: pointer; }}
+  button:hover {{ background: #2563eb; }}
+  .error {{ background: rgba(239,68,68,0.15); color: #ef4444; padding: 0.7rem; 
+            border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }}
+</style>
+</head><body>
+<div class="login-card">
+  <h1>🛡️ Tech Sentinel</h1>
+  <form method="post" action="/login?redirect={redirect}">
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" name="password" required autofocus>
+    </div>
+    <button type="submit">🔓 Login</button>
+  </form>
+</div>
+</body></html>"""
+
+    @app.post("/login")
+    async def login_submit(
+        response: Response,
+        password: str = Form(...),
+        redirect: str = "/manage"
+    ):
+        """Process login and set session cookie."""
+        if password == ADMIN_PASSWORD:
+            token = generate_session_token()
+            resp = RedirectResponse(redirect, status_code=303)
+            resp.set_cookie(
+                key="session_token",
+                value=token,
+                httponly=True,
+                max_age=86400,  # 24 hours
+                samesite="lax"
+            )
+            return resp
+        else:
+            # Return to login with error
+            return HTMLResponse(f"""<!DOCTYPE html>
+<html><head>
+<title>Login Failed — Tech Sentinel Monitor</title>
+<style>
+  body {{ font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4ed; 
+         margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+  .login-card {{ background: #1a1d27; border-radius: 12px; padding: 2rem; 
+                 max-width: 400px; width: 100%; border: 1px solid #333750; }}
+  h1 {{ color: #3b82f6; text-align: center; margin-bottom: 1.5rem; }}
+  .form-group {{ margin-bottom: 1rem; }}
+  label {{ display: block; font-size: 0.85rem; color: #8b8fa3; margin-bottom: 0.3rem; }}
+  input {{ width: 100%; background: #0f1117; border: 1px solid #333750; border-radius: 6px;
+           color: #e1e4ed; padding: 0.6rem 0.8rem; font-size: 0.95rem; box-sizing: border-box; }}
+  input:focus {{ border-color: #3b82f6; outline: none; }}
+  button {{ width: 100%; background: #3b82f6; color: white; border: none; border-radius: 6px;
+            padding: 0.7rem; font-size: 1rem; font-weight: 600; cursor: pointer; }}
+  button:hover {{ background: #2563eb; }}
+  .error {{ background: rgba(239,68,68,0.15); color: #ef4444; padding: 0.7rem; 
+            border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }}
+</style>
+</head><body>
+<div class="login-card">
+  <h1>🛡️ Tech Sentinel</h1>
+  <div class="error">❌ Invalid password. Please try again.</div>
+  <form method="post" action="/login?redirect={redirect}">
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" name="password" required autofocus>
+    </div>
+    <button type="submit">🔓 Login</button>
+  </form>
+</div>
+</body></html>""", status_code=401)
+
+    @app.get("/logout")
+    async def logout(response: Response, session_token: str | None = Cookie(None)):
+        """Logout and clear session."""
+        if session_token:
+            with _session_lock:
+                _session_tokens.discard(session_token)
+        resp = RedirectResponse("/", status_code=303)
+        resp.delete_cookie("session_token")
+        return resp
 
     @app.get("/", response_class=HTMLResponse)
     async def root():
@@ -615,7 +785,11 @@ def create_status_app() -> FastAPI:
 
     # ── Manage Monitors Page ─────────────────────────────────────────────
     @app.get("/manage", response_class=HTMLResponse)
-    async def manage_page():
+    async def manage_page(session_token: str | None = Cookie(None)):
+        # Require authentication for management access
+        if not validate_session_token(session_token):
+            return RedirectResponse("/login?redirect=/manage", status_code=303)
+        
         from windows.local_database import list_tenants, list_monitors, get_recent_results
 
         tenants = list_tenants()
@@ -734,10 +908,28 @@ def create_status_app() -> FastAPI:
     # ── Add Monitor (POST) ───────────────────────────────────────────────
     @app.post("/manage/add")
     async def add_monitor(
+        request: Request,
+        session_token: str | None = Cookie(None),
         name: str = Form(...), monitor_type: str = Form(...),
         target: str = Form(...), interval_seconds: int = Form(60),
         timeout_seconds: int = Form(10), group_name: str = Form(""),
     ):
+        # Require authentication for monitor creation
+        if not validate_session_token(session_token):
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required. Please log in to create monitors."
+            )
+        
+        # Rate limiting to prevent rapid monitor creation attacks
+        client_ip = request.client.host if request.client else "unknown"
+        if not check_rate_limit(client_ip):
+            raise HTTPException(
+                status_code=429,
+                detail=f"Rate limit exceeded. Maximum {RATE_LIMIT_MAX_REQUESTS} monitor "
+                       f"creations per {RATE_LIMIT_WINDOW} seconds allowed."
+            )
+        
         from windows.local_database import list_tenants, create_tenant, create_monitor
         from windows.local_queue import enqueue_job
 
@@ -747,11 +939,16 @@ def create_status_app() -> FastAPI:
         else:
             tenant = tenants[0]
 
-        m = create_monitor(
-            tenant_id=tenant["id"], name=name, monitor_type=monitor_type,
-            target=target, interval_seconds=interval_seconds,
-            timeout_seconds=timeout_seconds, group_name=group_name.strip(),
-        )
+        try:
+            m = create_monitor(
+                tenant_id=tenant["id"], name=name, monitor_type=monitor_type,
+                target=target, interval_seconds=interval_seconds,
+                timeout_seconds=timeout_seconds, group_name=group_name.strip(),
+            )
+        except ValueError as e:
+            # Quota exceeded
+            raise HTTPException(status_code=400, detail=str(e))
+        
         enqueue_job({
             "monitor_id": m["id"], "tenant_id": m["tenant_id"],
             "monitor_type": m["monitor_type"], "target": m["target"],
@@ -767,7 +964,11 @@ def create_status_app() -> FastAPI:
 
     # ── Edit Monitor (GET form) ──────────────────────────────────────────
     @app.get("/manage/edit/{monitor_id}", response_class=HTMLResponse)
-    async def edit_monitor_form(monitor_id: str):
+    async def edit_monitor_form(monitor_id: str, session_token: str | None = Cookie(None)):
+        # Require authentication
+        if not validate_session_token(session_token):
+            return RedirectResponse("/login?redirect=/manage", status_code=303)
+        
         from windows.local_database import get_monitor
 
         m = get_monitor(monitor_id)
@@ -839,11 +1040,17 @@ def create_status_app() -> FastAPI:
     # ── Edit Monitor (POST save) ─────────────────────────────────────────
     @app.post("/manage/edit/{monitor_id}")
     async def edit_monitor_save(
-        monitor_id: str, name: str = Form(...), monitor_type: str = Form(...),
+        monitor_id: str,
+        session_token: str | None = Cookie(None),
+        name: str = Form(...), monitor_type: str = Form(...),
         target: str = Form(...), interval_seconds: int = Form(60),
         timeout_seconds: int = Form(10), status: str = Form("active"),
         group_name: str = Form(""),
     ):
+        # Require authentication
+        if not validate_session_token(session_token):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
         from windows.local_database import get_monitor, _get_conn, update_monitor_status
         import json as _json
         from datetime import datetime, timezone
@@ -866,7 +1073,11 @@ def create_status_app() -> FastAPI:
 
     # ── Delete Monitor ───────────────────────────────────────────────────
     @app.get("/manage/delete/{monitor_id}")
-    async def delete_monitor_action(monitor_id: str):
+    async def delete_monitor_action(monitor_id: str, session_token: str | None = Cookie(None)):
+        # Require authentication
+        if not validate_session_token(session_token):
+            return RedirectResponse("/login?redirect=/manage", status_code=303)
+        
         from windows.local_database import get_monitor, delete_monitor
 
         m = get_monitor(monitor_id)

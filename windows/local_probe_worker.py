@@ -222,6 +222,15 @@ class LocalProbeWorker:
         self.total_checks = 0
         self.checks_up = 0
         self.checks_down = 0
+        
+        # Track last scheduled time for each monitor to implement interval-aware scheduling
+        # and prevent duplicate job enqueueing (key mitigation for resource exhaustion)
+        self._last_scheduled: dict[str, float] = {}
+        self._schedule_lock = threading.Lock()
+        
+        # Track monitors currently in queue to prevent duplicate enqueueing
+        self._queued_monitors: set[str] = set()
+        self._queue_lock = threading.Lock()
 
     def start(self):
         self._running = True
@@ -241,24 +250,56 @@ class LocalProbeWorker:
         logger.info("Local probe worker stopped")
 
     def _scheduler_loop(self):
-        """Periodically enqueue active monitors for probing."""
+        """Periodically enqueue active monitors for probing.
+        
+        Implements interval-aware scheduling and duplicate suppression to prevent
+        resource exhaustion from unbounded job enqueueing.
+        """
         while self._running:
             try:
                 monitors = list_all_active_monitors()
+                now = time.monotonic()
+                
                 for m in monitors:
+                    monitor_id = m["id"]
+                    interval = m.get("interval_seconds", 60)
+                    
+                    # Check if this monitor is due for scheduling based on its interval
+                    with self._schedule_lock:
+                        last_scheduled = self._last_scheduled.get(monitor_id, 0)
+                        time_since_last = now - last_scheduled
+                        
+                        # Only schedule if interval has elapsed
+                        if time_since_last < interval:
+                            continue
+                        
+                        # Check if already queued to prevent duplicates
+                        with self._queue_lock:
+                            if monitor_id in self._queued_monitors:
+                                continue
+                            # Mark as queued
+                            self._queued_monitors.add(monitor_id)
+                        
+                        # Update last scheduled time
+                        self._last_scheduled[monitor_id] = now
+                    
+                    # Enqueue the job
                     enqueue_job({
-                        "monitor_id": m["id"],
+                        "monitor_id": monitor_id,
                         "tenant_id": m["tenant_id"],
                         "monitor_type": m["monitor_type"],
                         "target": m["target"],
-                        "interval_seconds": str(m["interval_seconds"]),
+                        "interval_seconds": str(interval),
                         "timeout_seconds": str(m["timeout_seconds"]),
                         "config": m.get("config", "{}"),
                     })
+                    
             except Exception as e:
                 logger.error("Scheduler error: %s", e)
 
-            # Sleep for the minimum interval (check every 30s)
+            # Sleep for the scheduler check interval (30s)
+            # This is how often we check which monitors need scheduling,
+            # not how often we schedule each monitor (that's per-monitor interval)
             for _ in range(30):
                 if not self._running:
                     return
@@ -278,6 +319,10 @@ class LocalProbeWorker:
         target = job.get("target", "")
         timeout = int(job.get("timeout_seconds", "10"))
         config = job.get("config", "{}")
+
+        # Remove from queued set now that we're processing it
+        with self._queue_lock:
+            self._queued_monitors.discard(monitor_id)
 
         # Check maintenance window — skip alerting but still probe
         in_maintenance = False
