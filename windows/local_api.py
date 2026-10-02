@@ -67,13 +67,46 @@ def _load_jwt_secret() -> str:
     return new_secret
 
 
+def _load_admin_key() -> str:
+    """Admin API key: TS_ADMIN_KEY if set, else a random per-install key.
+
+    The generated key is created on first run and kept next to the local database
+    (%LOCALAPPDATA%/TechSentinelMonitor/admin_key) and logged on startup.
+    """
+    env_key = os.environ.get("TS_ADMIN_KEY")
+    if env_key:
+        return env_key
+    import secrets as _secrets
+    secret_dir = os.path.join(os.environ.get("LOCALAPPDATA", "."), "TechSentinelMonitor")
+    key_path = os.path.join(secret_dir, "admin_key")
+    try:
+        with open(key_path, "r", encoding="utf-8") as f:
+            existing = f.read().strip()
+        if existing:
+            return existing
+    except OSError:
+        pass
+    new_key = _secrets.token_urlsafe(32)
+    try:
+        os.makedirs(secret_dir, exist_ok=True)
+        with open(key_path, "w", encoding="utf-8") as f:
+            f.write(new_key)
+        logger.warning(f"Generated new admin key: {new_key}")
+        logger.warning(f"Admin key saved to: {key_path}")
+    except OSError as e:
+        logger.warning(f"Could not persist admin key ({e}); admin access will reset on restart")
+    return new_key
+
+
 JWT_SECRET = _load_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60
+ADMIN_KEY = _load_admin_key()
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
 
 api_key_header = APIKeyHeader(name="X-TS-API-Key", auto_error=False)
+admin_key_header = APIKeyHeader(name="X-TS-Admin-Key", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -103,6 +136,18 @@ async def get_current_tenant(
         except JWTError:
             pass
     raise HTTPException(status_code=401, detail="Invalid API key or token")
+
+
+async def verify_admin(
+    admin_key: str | None = Security(admin_key_header),
+):
+    """Verify admin authentication for tenant management operations."""
+    if not admin_key or admin_key != ADMIN_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Admin authentication required. Provide X-TS-Admin-Key header.",
+        )
+    return True
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -231,17 +276,6 @@ def create_app() -> FastAPI:
     # ── Root / Landing ─────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def root():
-        tenants_list = list_tenants()
-        tenant_rows = ""
-        for t in tenants_list:
-            tenant_rows += f"""<tr>
-                <td>{t['name']}</td><td><code>{t['slug']}</code></td>
-                <td><code style="font-size:0.8em">{t['api_key']}</code></td>
-                <td><code style="font-size:0.8em">{t['id']}</code></td>
-            </tr>"""
-        if not tenant_rows:
-            tenant_rows = '<tr><td colspan="4" style="text-align:center;color:#888">No tenants yet — run the demo or provision via API</td></tr>'
-
         return f"""<!DOCTYPE html>
 <html><head>
 <title>Tech Sentinel Monitor — Control Plane</title>
@@ -258,6 +292,7 @@ def create_app() -> FastAPI:
   .link-btn {{ background: #222636; padding: 0.7rem 1.2rem; border-radius: 8px; border: 1px solid #333750; }}
   .link-btn:hover {{ border-color: #3b82f6; }}
   .badge {{ background: #22c55e22; color: #22c55e; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; }}
+  .info {{ background: #3b82f622; color: #3b82f6; padding: 1rem; border-radius: 8px; margin: 1rem 0; }}
 </style>
 </head><body>
 <h1>🛡️ Tech Sentinel Monitor</h1>
@@ -275,22 +310,22 @@ def create_app() -> FastAPI:
 </div>
 
 <div class="card">
-  <h2 style="margin-top:0">🏢 Tenants</h2>
-  <table>
-    <tr><th>Name</th><th>Slug</th><th>API Key</th><th>ID</th></tr>
-    {tenant_rows}
-  </table>
+  <h2 style="margin-top:0">🔐 Authentication</h2>
+  <p>Administrative endpoints require authentication via the <code>X-TS-Admin-Key</code> header.</p>
+  <p>The admin key is automatically generated on first run and saved to:<br>
+  <code>%LOCALAPPDATA%\\TechSentinelMonitor\\admin_key</code></p>
+  <p>Tenant operations require authentication via the <code>X-TS-API-Key</code> header or JWT bearer token.</p>
 </div>
 
 <div class="card">
   <h2 style="margin-top:0">📡 API Endpoints</h2>
   <table>
     <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
-    <tr><td><code>POST</code></td><td><a href="/docs#/tenants">/api/v1/tenants/</a></td><td>Create tenant</td></tr>
-    <tr><td><code>GET</code></td><td><a href="/api/v1/tenants/">/api/v1/tenants/</a></td><td>List tenants</td></tr>
+    <tr><td><code>POST</code></td><td><a href="/docs#/tenants">/api/v1/tenants/</a></td><td>Create tenant (admin auth required)</td></tr>
+    <tr><td><code>GET</code></td><td><a href="/api/v1/tenants/">/api/v1/tenants/</a></td><td>List tenants (admin auth required)</td></tr>
     <tr><td><code>POST</code></td><td><a href="/docs#/monitors">/api/v1/monitors/</a></td><td>Create monitor (auth required)</td></tr>
-    <tr><td><code>POST</code></td><td><a href="/docs#/alerts">/api/v1/alert-channels/</a></td><td>Create alert channel</td></tr>
-    <tr><td><code>POST</code></td><td><a href="/docs#/status-pages">/api/v1/status-pages/</a></td><td>Create status page</td></tr>
+    <tr><td><code>POST</code></td><td><a href="/docs#/alerts">/api/v1/alert-channels/</a></td><td>Create alert channel (auth required)</td></tr>
+    <tr><td><code>POST</code></td><td><a href="/docs#/status-pages">/api/v1/status-pages/</a></td><td>Create status page (auth required)</td></tr>
     <tr><td><code>POST</code></td><td><a href="/docs#/heartbeat">/api/v1/heartbeat/{{id}}</a></td><td>Record heartbeat</td></tr>
     <tr><td><code>POST</code></td><td><a href="/docs#/auth">/api/v1/auth/token</a></td><td>Get JWT token</td></tr>
   </table>
@@ -306,22 +341,22 @@ def create_app() -> FastAPI:
 
     # ── Tenants ──────────────────────────────────────────────────────────
     @app.post("/api/v1/tenants/", status_code=201, tags=["tenants"])
-    async def create_tenant_ep(body: TenantCreate):
+    async def create_tenant_ep(body: TenantCreate, _admin=Depends(verify_admin)):
         return create_tenant(name=body.name, slug=body.slug)
 
     @app.get("/api/v1/tenants/", tags=["tenants"])
-    async def list_tenants_ep():
+    async def list_tenants_ep(_admin=Depends(verify_admin)):
         return list_tenants()
 
     @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
-    async def get_tenant_ep(tenant_id: str):
+    async def get_tenant_ep(tenant_id: str, _admin=Depends(verify_admin)):
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
         return t
 
     @app.delete("/api/v1/tenants/{tenant_id}", status_code=204, tags=["tenants"])
-    async def delete_tenant_ep(tenant_id: str):
+    async def delete_tenant_ep(tenant_id: str, _admin=Depends(verify_admin)):
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
@@ -610,16 +645,16 @@ def create_app() -> FastAPI:
 
     # ── Audit Log ────────────────────────────────────────────────────────
     @app.get("/api/v1/audit-log", tags=["audit"])
-    async def audit_log_ep(limit: int = 100, monitor_id: str = ""):
+    async def audit_log_ep(limit: int = 100, monitor_id: str = "", _admin=Depends(verify_admin)):
         return get_audit_log(limit=min(limit, 500), monitor_id=monitor_id)
 
     # ── Server File Storage ──────────────────────────────────────────────
     @app.get("/api/v1/files", tags=["files"])
-    async def list_files_ep():
+    async def list_files_ep(_admin=Depends(verify_admin)):
         return list_server_files()
 
     @app.post("/api/v1/files/upload", status_code=201, tags=["files"])
-    async def upload_file_ep(file: UploadFile, description: str = Form("")):
+    async def upload_file_ep(file: UploadFile, description: str = Form(""), _admin=Depends(verify_admin)):
         """Upload a file to the server file storage."""
         import os
         storage_dir = os.path.join(
