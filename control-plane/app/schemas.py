@@ -12,10 +12,10 @@ class TenantCreate(BaseModel):
 
 
 class TenantResponse(BaseModel):
+    """Public tenant response schema. Excludes api_key for security."""
     id: str
     name: str
     slug: str
-    api_key: str
     created_at: datetime
     updated_at: datetime
 
