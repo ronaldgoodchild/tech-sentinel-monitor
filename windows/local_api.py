@@ -111,6 +111,14 @@ class TenantCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9\-]+$")
 
+class TenantPublicResponse(BaseModel):
+    """Public tenant response without sensitive API key."""
+    id: str
+    name: str
+    slug: str
+    created_at: str
+    updated_at: str
+
 class MonitorCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     monitor_type: str = Field(..., pattern=r"^(http|tcp|ping|heartbeat)$")
@@ -307,21 +315,34 @@ def create_app() -> FastAPI:
     # ── Tenants ──────────────────────────────────────────────────────────
     @app.post("/api/v1/tenants/", status_code=201, tags=["tenants"])
     async def create_tenant_ep(body: TenantCreate):
-        return create_tenant(name=body.name, slug=body.slug)
+        """Create a new tenant. Returns API key only on initial creation."""
+        try:
+            return create_tenant(name=body.name, slug=body.slug)
+        except Exception as e:
+            # SQLite raises IntegrityError for UNIQUE constraint violations
+            if "UNIQUE constraint failed" in str(e):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Tenant with slug '{body.slug}' already exists",
+                )
+            raise
 
-    @app.get("/api/v1/tenants/", tags=["tenants"])
-    async def list_tenants_ep():
+    @app.get("/api/v1/tenants/", response_model=list[TenantPublicResponse], tags=["tenants"])
+    async def list_tenants_ep(tenant=Depends(get_current_tenant)):
+        """List all tenants. Requires authentication. Does not expose API keys."""
         return list_tenants()
 
-    @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
-    async def get_tenant_ep(tenant_id: str):
+    @app.get("/api/v1/tenants/{tenant_id}", response_model=TenantPublicResponse, tags=["tenants"])
+    async def get_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Get tenant by ID. Requires authentication. Does not expose API key."""
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
         return t
 
     @app.delete("/api/v1/tenants/{tenant_id}", status_code=204, tags=["tenants"])
-    async def delete_tenant_ep(tenant_id: str):
+    async def delete_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Delete a tenant. Requires authentication."""
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")

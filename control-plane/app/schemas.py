@@ -20,6 +20,15 @@ class TenantResponse(BaseModel):
     updated_at: datetime
 
 
+class TenantPublicResponse(BaseModel):
+    """Public tenant response without sensitive API key."""
+    id: str
+    name: str
+    slug: str
+    created_at: datetime
+    updated_at: datetime
+
+
 # ── Monitors ─────────────────────────────────────────────────────────────────
 
 class MonitorCreate(BaseModel):
