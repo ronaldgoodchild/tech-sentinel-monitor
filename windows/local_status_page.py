@@ -883,12 +883,16 @@ def create_status_app() -> FastAPI:
             get_monitor, get_uptime_stats, get_response_time_series,
             get_recent_results, get_incidents, get_avg_response_time,
             is_in_maintenance, get_performance_history,
-            get_command_history,
+            get_command_history, get_tenant,
         )
 
         m = get_monitor(monitor_id)
         if not m:
             return HTMLResponse("<h1>Monitor not found</h1>", status_code=404)
+
+        # Get tenant for API key (needed for IT tools)
+        tenant = get_tenant(m["tenant_id"])
+        tenant_api_key = tenant["api_key"] if tenant else ""
 
         stats = get_uptime_stats(monitor_id)
         series = get_response_time_series(monitor_id, 60)
@@ -1321,11 +1325,7 @@ var _apiKey = null;
 var currentPath = 'C:\\\\';
 
 function getApiKey(){{
-  if(_apiKey) return Promise.resolve(_apiKey);
-  return fetch(apiBase+'/api/v1/tenants/').then(function(r){{return r.json()}}).then(function(t){{
-    if(!t.length) throw new Error('No tenants');
-    _apiKey=t[0].api_key; return _apiKey;
-  }});
+  return Promise.resolve('{tenant_api_key}');
 }}
 
 // ── Tab Switching ──
