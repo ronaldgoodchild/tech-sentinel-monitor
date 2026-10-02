@@ -111,6 +111,23 @@ class TenantCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9\-]+$")
 
+class TenantResponse(BaseModel):
+    """Response schema for tenant - excludes api_key."""
+    id: str
+    name: str
+    slug: str
+    created_at: str
+    updated_at: str
+
+class TenantCreateResponse(BaseModel):
+    """Response for tenant creation - includes api_key only once at creation time."""
+    id: str
+    name: str
+    slug: str
+    api_key: str
+    created_at: str
+    updated_at: str
+
 class MonitorCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     monitor_type: str = Field(..., pattern=r"^(http|tcp|ping|heartbeat)$")
@@ -236,11 +253,10 @@ def create_app() -> FastAPI:
         for t in tenants_list:
             tenant_rows += f"""<tr>
                 <td>{t['name']}</td><td><code>{t['slug']}</code></td>
-                <td><code style="font-size:0.8em">{t['api_key']}</code></td>
                 <td><code style="font-size:0.8em">{t['id']}</code></td>
             </tr>"""
         if not tenant_rows:
-            tenant_rows = '<tr><td colspan="4" style="text-align:center;color:#888">No tenants yet — run the demo or provision via API</td></tr>'
+            tenant_rows = '<tr><td colspan="3" style="text-align:center;color:#888">No tenants yet — run the demo or provision via API</td></tr>'
 
         return f"""<!DOCTYPE html>
 <html><head>
@@ -277,7 +293,7 @@ def create_app() -> FastAPI:
 <div class="card">
   <h2 style="margin-top:0">🏢 Tenants</h2>
   <table>
-    <tr><th>Name</th><th>Slug</th><th>API Key</th><th>ID</th></tr>
+    <tr><th>Name</th><th>Slug</th><th>ID</th></tr>
     {tenant_rows}
   </table>
 </div>
@@ -287,7 +303,7 @@ def create_app() -> FastAPI:
   <table>
     <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
     <tr><td><code>POST</code></td><td><a href="/docs#/tenants">/api/v1/tenants/</a></td><td>Create tenant</td></tr>
-    <tr><td><code>GET</code></td><td><a href="/api/v1/tenants/">/api/v1/tenants/</a></td><td>List tenants</td></tr>
+    <tr><td><code>GET</code></td><td><a href="/api/v1/tenants/">/api/v1/tenants/</a></td><td>List tenants (auth required)</td></tr>
     <tr><td><code>POST</code></td><td><a href="/docs#/monitors">/api/v1/monitors/</a></td><td>Create monitor (auth required)</td></tr>
     <tr><td><code>POST</code></td><td><a href="/docs#/alerts">/api/v1/alert-channels/</a></td><td>Create alert channel</td></tr>
     <tr><td><code>POST</code></td><td><a href="/docs#/status-pages">/api/v1/status-pages/</a></td><td>Create status page</td></tr>
@@ -305,25 +321,30 @@ def create_app() -> FastAPI:
         return {"status": "ok", "service": "control-plane-local", "mode": "windows-standalone"}
 
     # ── Tenants ──────────────────────────────────────────────────────────
-    @app.post("/api/v1/tenants/", status_code=201, tags=["tenants"])
+    @app.post("/api/v1/tenants/", status_code=201, tags=["tenants"], response_model=TenantCreateResponse)
     async def create_tenant_ep(body: TenantCreate):
+        """Create a new tenant. Returns api_key only at creation time for bootstrapping."""
         return create_tenant(name=body.name, slug=body.slug)
 
-    @app.get("/api/v1/tenants/", tags=["tenants"])
-    async def list_tenants_ep():
-        return list_tenants()
+    @app.get("/api/v1/tenants/", tags=["tenants"], response_model=list[TenantResponse])
+    async def list_tenants_ep(tenant=Depends(get_current_tenant)):
+        """List all tenants. Requires authentication. Only returns current tenant."""
+        # Return only the authenticated tenant to prevent enumeration
+        return [tenant]
 
-    @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
-    async def get_tenant_ep(tenant_id: str):
-        t = get_tenant(tenant_id)
-        if not t:
+    @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"], response_model=TenantResponse)
+    async def get_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Get tenant details. Requires authentication. Only returns current tenant."""
+        # Only allow retrieving the authenticated tenant
+        if tenant["id"] != tenant_id:
             raise HTTPException(404, "Tenant not found")
-        return t
+        return tenant
 
     @app.delete("/api/v1/tenants/{tenant_id}", status_code=204, tags=["tenants"])
-    async def delete_tenant_ep(tenant_id: str):
-        t = get_tenant(tenant_id)
-        if not t:
+    async def delete_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Delete a tenant. Requires authentication. Only allows deleting current tenant."""
+        # Only allow deleting the authenticated tenant
+        if tenant["id"] != tenant_id:
             raise HTTPException(404, "Tenant not found")
         delete_tenant(tenant_id)
 

@@ -15,6 +15,15 @@ class TenantResponse(BaseModel):
     id: str
     name: str
     slug: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class TenantCreateResponse(BaseModel):
+    """Response for tenant creation - includes api_key only once at creation time."""
+    id: str
+    name: str
+    slug: str
     api_key: str
     created_at: datetime
     updated_at: datetime
