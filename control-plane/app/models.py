@@ -24,7 +24,6 @@ async def create_tenant(name: str, slug: str, api_key: str | None = None):
             """
             INSERT INTO tenants (id, name, slug, api_key, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $5)
-            ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, updated_at = $5
             RETURNING *
             """,
             tenant_id, name, slug, api_key, _now(),

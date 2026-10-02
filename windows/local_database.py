@@ -241,12 +241,11 @@ def create_tenant(name: str, slug: str, api_key: str | None = None) -> dict:
     now = _now()
     conn.execute(
         """INSERT INTO tenants (id, name, slug, api_key, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT (slug) DO UPDATE SET name=excluded.name, updated_at=excluded.updated_at""",
+           VALUES (?, ?, ?, ?, ?, ?)""",
         (tenant_id, name, slug, api_key, now, now),
     )
     conn.commit()
-    row = conn.execute("SELECT * FROM tenants WHERE slug = ?", (slug,)).fetchone()
+    row = conn.execute("SELECT * FROM tenants WHERE id = ?", (tenant_id,)).fetchone()
     return _row_to_dict(row)
 
 
