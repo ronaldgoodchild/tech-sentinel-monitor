@@ -463,14 +463,23 @@ def _send_toast(title: str, message: str):
         pass
 
     # Fallback: PowerShell toast (works on any Windows 10/11, no pip install)
+    # Use Base64 encoding to avoid all injection risks with PowerShell special characters
     import subprocess
+    import base64
+    
+    # Encode title and message as UTF-16LE Base64 (PowerShell's native encoding)
+    title_b64 = base64.b64encode(title.encode('utf-16le')).decode('ascii')
+    message_b64 = base64.b64encode(message.encode('utf-16le')).decode('ascii')
+    
     ps_script = (
         f'[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, '
         f'ContentType = WindowsRuntime] > $null; '
         f'$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(1); '
         f'$text = $xml.GetElementsByTagName("text"); '
-        f'$text[0].AppendChild($xml.CreateTextNode("{title.replace(chr(34), "")}")) > $null; '
-        f'$text[1].AppendChild($xml.CreateTextNode("{message.replace(chr(34), "")}")) > $null; '
+        f'$title = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{title_b64}")); '
+        f'$message = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{message_b64}")); '
+        f'$text[0].AppendChild($xml.CreateTextNode($title)) > $null; '
+        f'$text[1].AppendChild($xml.CreateTextNode($message)) > $null; '
         f'$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Tech Sentinel"); '
         f'$notifier.Show([Windows.UI.Notifications.ToastNotification]::new($xml))'
     )
