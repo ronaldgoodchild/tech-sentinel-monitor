@@ -4,6 +4,7 @@ Standalone version that reads directly from SQLite instead of calling the API.
 Features: 3-across grid, clickable cards, edit/manage monitors.
 """
 
+import html
 import json
 import os
 from pathlib import Path
@@ -1316,6 +1317,11 @@ document.querySelectorAll('.ts').forEach(function(el){{
 
 var apiBase = 'http://' + location.hostname + ':8000';
 var monitorId = '{monitor_id}';
+function escapeHtml(text){{
+  var div=document.createElement('div');
+  div.textContent=text;
+  return div.innerHTML;
+}}
 var pollTimer = null;
 var _apiKey = null;
 var currentPath = 'C:\\\\';
@@ -1598,10 +1604,13 @@ function loadMsgHistory(){{
       var icons={{"info":"💬","warning":"⚠️","alert":"🚨"}};
       var stColor=m.status==='delivered'?'#22c55e':'#f59e0b';
       var stIcon=m.status==='delivered'?'✅':'⏳';
-      h+='<tr><td>'+(icons[m.msg_type]||'💬')+' '+m.msg_type+'</td><td>'+m.message+'</td><td class="ts">'+(m.created_at||'').substring(0,19)+'</td><td style="color:'+stColor+'">'+stIcon+' '+m.status+'</td></tr>';
+      h+='<tr><td>'+(icons[m.msg_type]||'💬')+' '+m.msg_type+'</td><td>'+escapeHtml(m.message)+'</td><td class="ts">'+(m.created_at||'').substring(0,19)+'</td><td style="color:'+stColor+'">'+stIcon+' '+m.status+'</td></tr>';
     }});
     h+='</tbody></table>';
-    document.getElementById('msg-history').innerHTML=h;
+    var container=document.getElementById('msg-history');
+    container.innerHTML='';
+    var tmp=document.createElement('div'); tmp.innerHTML=h;
+    container.appendChild(tmp.firstChild);
   }});
 }}
 
@@ -1806,12 +1815,12 @@ document.querySelectorAll('.ts').forEach(function(el){{
                            "process_kill": "💀", "login": "🔑"}
             icon = action_icons.get(action, "📝")
             rows += f"""<tr>
-                <td class="ts">{(e.get('timestamp',''))[:19]}</td>
-                <td>{icon} {action}</td>
-                <td>{e.get('target_type','')}</td>
-                <td><strong>{e.get('target_name','')}</strong></td>
-                <td style="color:#888;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{e.get('detail','')[:80]}</td>
-                <td style="color:#888">{e.get('user','')}</td>
+                <td class="ts">{html.escape((e.get('timestamp',''))[:19])}</td>
+                <td>{icon} {html.escape(action)}</td>
+                <td>{html.escape(e.get('target_type',''))}</td>
+                <td><strong>{html.escape(e.get('target_name',''))}</strong></td>
+                <td style="color:#888;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{html.escape(e.get('detail','')[:80])}</td>
+                <td style="color:#888">{html.escape(e.get('user',''))}</td>
             </tr>"""
 
         if not rows:
