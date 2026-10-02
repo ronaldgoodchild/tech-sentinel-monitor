@@ -307,24 +307,34 @@ def create_app() -> FastAPI:
     # ── Tenants ──────────────────────────────────────────────────────────
     @app.post("/api/v1/tenants/", status_code=201, tags=["tenants"])
     async def create_tenant_ep(body: TenantCreate):
+        """Create a new tenant. Unauthenticated to allow initial bootstrap."""
         return create_tenant(name=body.name, slug=body.slug)
 
     @app.get("/api/v1/tenants/", tags=["tenants"])
-    async def list_tenants_ep():
+    async def list_tenants_ep(tenant=Depends(get_current_tenant)):
+        """List all tenants. Requires authentication to prevent ID enumeration."""
         return list_tenants()
 
     @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
-    async def get_tenant_ep(tenant_id: str):
+    async def get_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Get tenant details. Requires authentication to prevent ID enumeration."""
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
         return t
 
     @app.delete("/api/v1/tenants/{tenant_id}", status_code=204, tags=["tenants"])
-    async def delete_tenant_ep(tenant_id: str):
+    async def delete_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Delete a tenant. Requires authentication and ownership verification."""
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
+        # Verify that the authenticated tenant is deleting their own tenant
+        if t["id"] != tenant["id"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot delete another tenant's account"
+            )
         delete_tenant(tenant_id)
 
     # ── Monitors ─────────────────────────────────────────────────────────
