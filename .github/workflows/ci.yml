@@ -69,6 +69,11 @@ jobs:
       - name: Start services
         run: |
           cp .env.example .env
+          # Set required secrets for CI testing
+          sed -i 's/CHANGE_ME_STRONG_DB_PASSWORD_HERE/ci_test_db_password_12345/' .env
+          sed -i 's/CHANGE_ME_STRONG_REDIS_PASSWORD_HERE/ci_test_redis_password_12345/' .env
+          sed -i 's/CHANGE_ME_STRONG_API_KEY_HERE/ci_test_api_key_12345/' .env
+          sed -i 's/CHANGE_ME_STRONG_JWT_SECRET_HERE/ci_test_jwt_secret_12345/' .env
           docker compose up -d --build
           # Wait for both services instead of guessing with a fixed sleep (a busy runner can be slow)
           for i in $(seq 1 60); do

@@ -9,17 +9,18 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "techsentinel"
     postgres_user: str = "tsadmin"
-    postgres_password: str = "changeme_db_password"
+    postgres_password: str
 
     # Redis
     redis_host: str = "redis"
     redis_port: int = 6379
+    redis_password: str
 
     # API
     ts_api_host: str = "0.0.0.0"
     ts_api_port: int = 8000
-    ts_api_key: str = "changeme_api_key"
-    ts_jwt_secret: str = "changeme_jwt_secret"
+    ts_api_key: str
+    ts_jwt_secret: str
     ts_jwt_algorithm: str = "HS256"
     ts_jwt_expire_minutes: int = 60
 
@@ -43,7 +44,10 @@ class Settings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
-        return f"redis://{self.redis_host}:{self.redis_port}"
+        from urllib.parse import quote_plus
+
+        password = quote_plus(self.redis_password)
+        return f"redis://:{password}@{self.redis_host}:{self.redis_port}"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
