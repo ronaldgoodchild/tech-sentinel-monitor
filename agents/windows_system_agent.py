@@ -90,13 +90,13 @@ def _save_config(api_url: str, api_key: str, interval: int = 60):
     print(f"  Config saved to: {CONFIG_FILE}")
 
 
-def _run_cmd(cmd: str, timeout: int = 10) -> str:
-    """Run a shell command and return output, hiding the console window."""
+def _run_cmd(cmd_args: list[str], timeout: int = 10) -> str:
+    """Run a command with argument list (shell=False) and return output, hiding the console window."""
     try:
         CREATE_NO_WINDOW = 0x08000000
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout,
-            creationflags=CREATE_NO_WINDOW, shell=True,
+            cmd_args, capture_output=True, text=True, timeout=timeout,
+            creationflags=CREATE_NO_WINDOW, shell=False,
         )
         return result.stdout.strip()
     except Exception:
@@ -105,7 +105,9 @@ def _run_cmd(cmd: str, timeout: int = 10) -> str:
 
 def _wmic(query: str) -> str:
     """Run a WMIC query."""
-    return _run_cmd(f"wmic {query}")
+    # Split query into arguments for safe execution
+    args = ["wmic"] + query.split()
+    return _run_cmd(args)
 
 
 # ── System Info Collectors ──────────────────────────────────────────────────
@@ -254,7 +256,7 @@ def get_network_interfaces() -> list[dict]:
 
     # Fallback: parse ipconfig
     try:
-        raw = _run_cmd("ipconfig /all")
+        raw = _run_cmd(["ipconfig", "/all"])
         current = None
         for line in raw.splitlines():
             line = line.strip()
@@ -405,7 +407,7 @@ def _ts_services() -> dict:
 
     # Fallback: use sc query
     try:
-        raw = _run_cmd("sc query state= all", timeout=30)
+        raw = _run_cmd(["sc", "query", "state=", "all"], timeout=30)
         svc = {}
         for line in raw.splitlines():
             line = line.strip()
@@ -460,7 +462,7 @@ def _ts_processes() -> dict:
 
     # Fallback: tasklist
     try:
-        raw = _run_cmd("tasklist /FO CSV /NH", timeout=15)
+        raw = _run_cmd(["tasklist", "/FO", "CSV", "/NH"], timeout=15)
         for line in raw.splitlines():
             parts = line.strip().strip('"').split('","')
             if len(parts) >= 5:
@@ -660,7 +662,8 @@ def _ts_kill(pid_str: str) -> dict:
             proc.kill()
             return {"success": True, "message": f"Killed process {name} (PID {pid})"}
         else:
-            result = _run_cmd(f"taskkill /PID {pid} /F", timeout=10)
+            # Use argument list to prevent injection
+            result = _run_cmd(["taskkill", "/PID", str(pid), "/F"], timeout=10)
             return {"success": True, "message": result or f"Kill signal sent to PID {pid}"}
     except (psutil.NoSuchProcess if HAS_PSUTIL else Exception):
         return {"error": f"Process {pid_str} not found"}
@@ -679,17 +682,27 @@ def _ts_service(arg: str) -> dict:
 
     if action not in ("start", "stop", "restart"):
         return {"error": f"Invalid action: {action}. Use start, stop, or restart."}
+    
+    # Validate service name to prevent injection
+    # Service names can contain alphanumeric, spaces, hyphens, underscores, and periods
+    import re
+    if not re.match(r'^[a-zA-Z0-9\s._-]+$', svc_name):
+        return {"error": f"Invalid service name: {svc_name}"}
+    
+    if len(svc_name) > 256:
+        return {"error": "Service name too long"}
 
     try:
         if action == "restart":
-            _run_cmd(f'net stop "{svc_name}"', timeout=30)
+            # Use argument lists to prevent injection
+            _run_cmd(["net", "stop", svc_name], timeout=30)
             import time as _t
             _t.sleep(2)
-            result = _run_cmd(f'net start "{svc_name}"', timeout=30)
+            result = _run_cmd(["net", "start", svc_name], timeout=30)
         elif action == "start":
-            result = _run_cmd(f'net start "{svc_name}"', timeout=30)
+            result = _run_cmd(["net", "start", svc_name], timeout=30)
         elif action == "stop":
-            result = _run_cmd(f'net stop "{svc_name}"', timeout=30)
+            result = _run_cmd(["net", "stop", svc_name], timeout=30)
         else:
             result = ""
 
@@ -813,24 +826,12 @@ def send_heartbeat(api_url: str, api_key: str, monitor_id: str, system_info: dic
 
 # ── Remote Command Execution ──────────────────────────────────────────────
 
-# Commands that are blocked for safety (destructive operations)
-BLOCKED_COMMANDS = [
-    "format", "del /s", "rd /s", "rmdir /s", "shutdown", "restart",
-    "reg delete", "bcdedit", "diskpart",
-]
-
-
-def _is_command_safe(cmd: str) -> bool:
-    """Basic safety check — block obviously destructive commands."""
-    cmd_lower = cmd.lower().strip()
-    for blocked in BLOCKED_COMMANDS:
-        if cmd_lower.startswith(blocked):
-            return False
-    return True
-
-
 def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
-    """Poll for pending commands and execute them."""
+    """Poll for pending commands and execute them.
+    
+    Only structured commands (__ts:*) are supported for security.
+    Arbitrary shell command execution has been disabled to prevent command injection.
+    """
     try:
         resp = requests.get(
             f"{api_url}/api/v1/monitors/{monitor_id}/commands/pending",
@@ -848,17 +849,6 @@ def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
             command = cmd["command"]
             print(f"  📥 Remote command: {command}")
 
-            # Safety check
-            if not _is_command_safe(command):
-                print(f"  ⛔ BLOCKED (unsafe): {command}")
-                requests.post(
-                    f"{api_url}/api/v1/commands/{cmd_id}/result",
-                    json={"output": f"BLOCKED: Command '{command}' is not allowed for safety reasons.",
-                          "exit_code": -1, "status": "failed"},
-                    headers={"X-TS-API-Key": api_key}, timeout=10,
-                )
-                continue
-
             # Mark as started
             try:
                 requests.post(
@@ -868,7 +858,7 @@ def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
             except Exception:
                 pass
 
-            # Check for structured command
+            # Only structured commands are allowed for security
             if command.startswith("__ts:"):
                 try:
                     output = handle_structured_command(command)
@@ -891,32 +881,14 @@ def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
                     print(f"  ⚠️ Failed to report result: {e}")
                 continue
 
-            # Execute
-            try:
-                CREATE_NO_WINDOW = 0x08000000
-                result = subprocess.run(
-                    command, capture_output=True, text=True, timeout=120,
-                    creationflags=CREATE_NO_WINDOW, shell=True,
-                )
-                output = result.stdout
-                if result.stderr:
-                    output += "\n--- STDERR ---\n" + result.stderr
-                # Truncate to 50KB
-                if len(output) > 50000:
-                    output = output[:50000] + "\n... (truncated)"
-                exit_code = result.returncode
-                status = "completed"
-                print(f"  ✅ Completed (exit {exit_code})")
-            except subprocess.TimeoutExpired:
-                output = "Command timed out after 120 seconds"
-                exit_code = -1
-                status = "failed"
-                print(f"  ⏰ Timed out")
-            except Exception as e:
-                output = f"Error executing command: {e}"
-                exit_code = -1
-                status = "failed"
-                print(f"  ❌ Error: {e}")
+            # Reject arbitrary shell commands for security
+            output = json.dumps({
+                "error": "Arbitrary shell commands are not supported for security reasons. "
+                         "Use structured commands (__ts:*) instead."
+            })
+            exit_code = -1
+            status = "failed"
+            print(f"  ⛔ BLOCKED: Arbitrary command not allowed")
 
             # Report result
             try:

@@ -74,11 +74,11 @@ def _save_config(api_url: str, api_key: str, interval: int = 60):
     print(f"  Config saved to: {CONFIG_FILE}")
 
 
-def _run_cmd(cmd: str, timeout: int = 10) -> str:
-    """Run a shell command and return output."""
+def _run_cmd(cmd_args: list[str], timeout: int = 10) -> str:
+    """Run a command with argument list (shell=False) and return output."""
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, shell=True,
+            cmd_args, capture_output=True, text=True, timeout=timeout, shell=False,
         )
         return result.stdout.strip()
     except Exception:
@@ -676,7 +676,8 @@ def _ts_kill(pid_str: str) -> dict:
             proc.kill()
             return {"success": True, "message": f"Killed process {name} (PID {pid})"}
         else:
-            result = _run_cmd(f"kill -9 {pid}", timeout=10)
+            # Use argument list to prevent injection
+            result = _run_cmd(["kill", "-9", str(pid)], timeout=10)
             return {"success": True, "message": result or f"Kill signal sent to PID {pid}"}
     except Exception as e:
         return {"error": str(e)}
@@ -691,9 +692,19 @@ def _ts_service(arg: str) -> dict:
 
     if action not in ("start", "stop", "restart"):
         return {"error": f"Invalid action: {action}. Use start, stop, or restart."}
+    
+    # Validate service name to prevent injection
+    # Service names can contain alphanumeric, hyphens, underscores, periods, and @ for templates
+    import re
+    if not re.match(r'^[a-zA-Z0-9._@-]+$', svc_name):
+        return {"error": f"Invalid service name: {svc_name}"}
+    
+    if len(svc_name) > 256:
+        return {"error": "Service name too long"}
 
     try:
-        result = _run_cmd(f"sudo systemctl {action} {svc_name}", timeout=30)
+        # Use argument lists to prevent injection
+        result = _run_cmd(["sudo", "systemctl", action, svc_name], timeout=30)
         return {"success": True, "action": action, "service": svc_name,
                 "message": result or f"Service {svc_name} {action} command sent"}
     except Exception as e:
@@ -795,23 +806,12 @@ def send_heartbeat(api_url: str, api_key: str, monitor_id: str, system_info: dic
 
 # ── Remote Command Execution ──────────────────────────────────────────────
 
-BLOCKED_COMMANDS = [
-    "rm -rf /", "mkfs", "dd if=", "shutdown", "reboot", "init 0",
-    "halt", "poweroff", "> /dev/sda", ":(){ :|:", "chmod -R 777 /",
-]
-
-
-def _is_command_safe(cmd: str) -> bool:
-    """Basic safety check — block destructive commands."""
-    cmd_lower = cmd.lower().strip()
-    for blocked in BLOCKED_COMMANDS:
-        if blocked in cmd_lower:
-            return False
-    return True
-
-
 def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
-    """Poll for pending commands and execute them."""
+    """Poll for pending commands and execute them.
+    
+    Only structured commands (__ts:*) are supported for security.
+    Arbitrary shell command execution has been disabled to prevent command injection.
+    """
     try:
         resp = requests.get(
             f"{api_url}/api/v1/monitors/{monitor_id}/commands/pending",
@@ -829,16 +829,6 @@ def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
             command = cmd["command"]
             print(f"  📥 Remote command: {command}")
 
-            if not _is_command_safe(command):
-                print(f"  ⛔ BLOCKED (unsafe): {command}")
-                requests.post(
-                    f"{api_url}/api/v1/commands/{cmd_id}/result",
-                    json={"output": f"BLOCKED: Command '{command}' is not allowed for safety reasons.",
-                          "exit_code": -1, "status": "failed"},
-                    headers={"X-TS-API-Key": api_key}, timeout=10,
-                )
-                continue
-
             try:
                 requests.post(
                     f"{api_url}/api/v1/commands/{cmd_id}/start",
@@ -847,7 +837,7 @@ def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
             except Exception:
                 pass
 
-            # Check for structured command
+            # Only structured commands are allowed for security
             if command.startswith("__ts:"):
                 try:
                     output = handle_structured_command(command)
@@ -870,28 +860,14 @@ def poll_and_execute_commands(api_url: str, api_key: str, monitor_id: str):
                     print(f"  ⚠️ Failed to report result: {e}")
                 continue
 
-            try:
-                result = subprocess.run(
-                    command, capture_output=True, text=True, timeout=120, shell=True,
-                )
-                output = result.stdout
-                if result.stderr:
-                    output += "\n--- STDERR ---\n" + result.stderr
-                if len(output) > 50000:
-                    output = output[:50000] + "\n... (truncated)"
-                exit_code = result.returncode
-                status = "completed"
-                print(f"  ✅ Completed (exit {exit_code})")
-            except subprocess.TimeoutExpired:
-                output = "Command timed out after 120 seconds"
-                exit_code = -1
-                status = "failed"
-                print(f"  ⏰ Timed out")
-            except Exception as e:
-                output = f"Error executing command: {e}"
-                exit_code = -1
-                status = "failed"
-                print(f"  ❌ Error: {e}")
+            # Reject arbitrary shell commands for security
+            output = json.dumps({
+                "error": "Arbitrary shell commands are not supported for security reasons. "
+                         "Use structured commands (__ts:*) instead."
+            })
+            exit_code = -1
+            status = "failed"
+            print(f"  ⛔ BLOCKED: Arbitrary command not allowed")
 
             try:
                 requests.post(
@@ -1122,7 +1098,8 @@ def main():
 
                 if msg_type in ("alert", "warning"):
                     try:
-                        _run_cmd(f'notify-send "Tech Sentinel {msg_type.upper()}" "{msg_text}"', timeout=5)
+                        # Use argument list to prevent injection
+                        _run_cmd(["notify-send", f"Tech Sentinel {msg_type.upper()}", msg_text], timeout=5)
                     except Exception:
                         pass
 
