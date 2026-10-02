@@ -16,6 +16,16 @@ def cli(ctx, api_url):
     """Tech Sentinel Monitor — Provisioner CLI"""
     ctx.ensure_object(dict)
     ctx.obj["api_url"] = api_url
+    
+    # Warn if using HTTP URL (credentials will be rejected unless TS_REQUIRE_TLS=false)
+    import os
+    if not api_url.startswith("https://") and os.getenv("TS_REQUIRE_TLS", "true").lower() != "false":
+        click.echo(
+            "⚠️  WARNING: Using HTTP URL with TLS enforcement enabled.\n"
+            "   Credential-bearing requests will be rejected by the server.\n"
+            "   Use an HTTPS URL or set TS_REQUIRE_TLS=false for local development.\n",
+            err=True
+        )
 
 
 @cli.command()

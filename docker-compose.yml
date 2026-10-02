@@ -31,6 +31,9 @@ services:
       retries: 10
 
   # ── Control Plane API ───────────────────────────
+  # SECURITY: This configuration exposes the API over HTTP for local development.
+  # For production, deploy behind a TLS-terminating reverse proxy (nginx, Traefik, etc.)
+  # or set TS_REQUIRE_TLS=false to disable transport security enforcement (NOT recommended).
   control-plane:
     build: ./control-plane
     env_file: .env
