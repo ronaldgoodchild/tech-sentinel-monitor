@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Redis
     redis_host: str = "redis"
     redis_port: int = 6379
+    redis_password: str = "changeme_redis_password"
 
     # API
     ts_api_host: str = "0.0.0.0"
@@ -43,7 +44,7 @@ class Settings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
-        return f"redis://{self.redis_host}:{self.redis_port}"
+        return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

@@ -21,6 +21,32 @@ async def get_pool() -> asyncpg.Pool:
     return _pool
 
 
+async def validate_monitor_exists(monitor_id: str, tenant_id: str | None = None) -> bool:
+    """Verify that the monitor exists in the database and is active.
+    
+    This prevents processing of forged or injected jobs that reference
+    non-existent or inactive monitors.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if tenant_id:
+            row = await conn.fetchrow(
+                "SELECT status FROM monitors WHERE id = $1 AND tenant_id = $2",
+                monitor_id, tenant_id
+            )
+        else:
+            row = await conn.fetchrow(
+                "SELECT status FROM monitors WHERE id = $1",
+                monitor_id
+            )
+        
+        if not row:
+            return False
+        
+        # Only process active monitors
+        return row["status"] == "active"
+
+
 async def write_check_result(
     monitor_id: str,
     status: str,
