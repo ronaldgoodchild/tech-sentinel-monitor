@@ -14,8 +14,9 @@ from fastapi import FastAPI, HTTPException, Depends, Security, status, UploadFil
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from jose import JWTError, jwt
+import re
 
 from windows.local_database import (
     create_tenant, get_tenant, get_tenant_by_slug, get_tenant_by_api_key,
@@ -120,6 +121,17 @@ class MonitorCreate(BaseModel):
     external_id: str | None = None
     config: dict | None = None
     group_name: str = Field(default="", max_length=100)
+    
+    @field_validator('name', 'group_name')
+    @classmethod
+    def sanitize_text_fields(cls, v: str) -> str:
+        """Sanitize text fields to prevent injection attacks."""
+        if not v:
+            return v
+        # Remove control characters and dangerous characters
+        # Allow: letters, numbers, spaces, and safe punctuation: -_.,()[]@#:
+        sanitized = re.sub(r'[^\w\s\-_.,()[\]@#:]+', '', v, flags=re.UNICODE)
+        return sanitized.strip()
 
 class MonitorStatusUpdate(BaseModel):
     status: str = Field(..., pattern=r"^(active|paused)$")

@@ -6,11 +6,34 @@ Features: 3-across grid, clickable cards, edit/manage monitors.
 
 import json
 import os
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from windows.local_version_control import APP_VERSION
+
+
+# ── Input Sanitization ───────────────────────────────────────────────────────
+
+def _sanitize_monitor_name(name: str) -> str:
+    """Sanitize monitor name to prevent injection attacks.
+    
+    Removes or replaces characters that could be used for command injection,
+    script injection, or other security issues. Allows alphanumeric, spaces,
+    and common safe punctuation.
+    """
+    if not name:
+        return ""
+    
+    # Remove control characters and other dangerous characters
+    # Allow: letters, numbers, spaces, and safe punctuation: -_.,()[]@#:
+    sanitized = re.sub(r'[^\w\s\-_.,()[\]@#:]+', '', name, flags=re.UNICODE)
+    
+    # Trim whitespace and limit length
+    sanitized = sanitized.strip()[:255]
+    
+    return sanitized
 
 
 # ── Shared CSS ───────────────────────────────────────────────────────────────
@@ -741,6 +764,17 @@ def create_status_app() -> FastAPI:
         from windows.local_database import list_tenants, create_tenant, create_monitor
         from windows.local_queue import enqueue_job
 
+        # Sanitize user inputs to prevent injection attacks
+        name = _sanitize_monitor_name(name)
+        group_name = _sanitize_monitor_name(group_name)
+        
+        if not name:
+            raise HTTPException(status_code=400, detail="Monitor name cannot be empty or contain only special characters")
+        
+        # Validate monitor_type against allowed values
+        if monitor_type not in ("ping", "http", "tcp", "heartbeat"):
+            raise HTTPException(status_code=400, detail="Invalid monitor type")
+
         tenants = list_tenants()
         if not tenants:
             tenant = create_tenant("REGTeches / Bay Area Tech", "regteches")
@@ -851,6 +885,19 @@ def create_status_app() -> FastAPI:
         m = get_monitor(monitor_id)
         if not m:
             raise HTTPException(404, "Monitor not found")
+
+        # Sanitize user inputs to prevent injection attacks
+        name = _sanitize_monitor_name(name)
+        group_name = _sanitize_monitor_name(group_name)
+        
+        if not name:
+            raise HTTPException(status_code=400, detail="Monitor name cannot be empty or contain only special characters")
+        
+        # Validate monitor_type and status against allowed values
+        if monitor_type not in ("ping", "http", "tcp", "heartbeat"):
+            raise HTTPException(status_code=400, detail="Invalid monitor type")
+        if status not in ("active", "paused"):
+            raise HTTPException(status_code=400, detail="Invalid status")
 
         conn = _get_conn()
         conn.execute(
