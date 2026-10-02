@@ -222,15 +222,26 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Restrict CORS to localhost origins only (status page on :8001, API on :8000)
+    # This prevents arbitrary web pages from reading tenant API keys
+    allowed_origins = [
+        "http://localhost:8000",
+        "http://localhost:8001",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8001",
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"], allow_credentials=True,
-        allow_methods=["*"], allow_headers=["*"],
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-TS-API-Key"],
     )
 
     # ── Root / Landing ─────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def root():
+        # Internal use only - this page is served from the same origin
         tenants_list = list_tenants()
         tenant_rows = ""
         for t in tenants_list:
@@ -310,18 +321,28 @@ def create_app() -> FastAPI:
         return create_tenant(name=body.name, slug=body.slug)
 
     @app.get("/api/v1/tenants/", tags=["tenants"])
-    async def list_tenants_ep():
-        return list_tenants()
+    async def list_tenants_ep(tenant=Depends(get_current_tenant)):
+        """List all tenants. Requires authentication. API keys are redacted for security."""
+        tenants = list_tenants()
+        # Redact API keys from the response to prevent key leakage
+        for t in tenants:
+            if "api_key" in t:
+                t["api_key"] = "***REDACTED***"
+        return tenants
 
     @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
-    async def get_tenant_ep(tenant_id: str):
+    async def get_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Get a specific tenant. Requires authentication. API key is redacted."""
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
+        # Redact API key from response
+        if "api_key" in t:
+            t["api_key"] = "***REDACTED***"
         return t
 
     @app.delete("/api/v1/tenants/{tenant_id}", status_code=204, tags=["tenants"])
-    async def delete_tenant_ep(tenant_id: str):
+    async def delete_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")

@@ -883,12 +883,16 @@ def create_status_app() -> FastAPI:
             get_monitor, get_uptime_stats, get_response_time_series,
             get_recent_results, get_incidents, get_avg_response_time,
             is_in_maintenance, get_performance_history,
-            get_command_history,
+            get_command_history, get_tenant,
         )
 
         m = get_monitor(monitor_id)
         if not m:
             return HTMLResponse("<h1>Monitor not found</h1>", status_code=404)
+        
+        # Get tenant API key for embedded authentication
+        tenant = get_tenant(m["tenant_id"])
+        tenant_api_key = tenant["api_key"] if tenant else ""
 
         stats = get_uptime_stats(monitor_id)
         series = get_response_time_series(monitor_id, 60)
@@ -1317,15 +1321,13 @@ document.querySelectorAll('.ts').forEach(function(el){{
 var apiBase = 'http://' + location.hostname + ':8000';
 var monitorId = '{monitor_id}';
 var pollTimer = null;
-var _apiKey = null;
+var _apiKey = '{tenant_api_key}';  // Embedded tenant API key for authentication
 var currentPath = 'C:\\\\';
 
 function getApiKey(){{
-  if(_apiKey) return Promise.resolve(_apiKey);
-  return fetch(apiBase+'/api/v1/tenants/').then(function(r){{return r.json()}}).then(function(t){{
-    if(!t.length) throw new Error('No tenants');
-    _apiKey=t[0].api_key; return _apiKey;
-  }});
+  // API key is now embedded in the page for security (no unauthenticated tenant list access)
+  if(_apiKey && _apiKey !== '') return Promise.resolve(_apiKey);
+  return Promise.reject(new Error('No API key available'));
 }}
 
 // ── Tab Switching ──
