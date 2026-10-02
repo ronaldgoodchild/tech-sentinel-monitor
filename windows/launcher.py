@@ -715,7 +715,7 @@ class TechSentinelLauncher:
         from windows.local_api import create_app
 
         app = create_app()
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
+        config = uvicorn.Config(app, host="127.0.0.1", port=port,
                                 log_level="warning", log_config=None)
         self.uvicorn_server = uvicorn.Server(config)
 
@@ -733,7 +733,7 @@ class TechSentinelLauncher:
         from windows.local_status_page import create_status_app
         app = create_status_app()
 
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
+        config = uvicorn.Config(app, host="127.0.0.1", port=port,
                                 log_level="warning", log_config=None)
         self.status_server = uvicorn.Server(config)
 

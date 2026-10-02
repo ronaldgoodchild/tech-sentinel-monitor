@@ -105,6 +105,28 @@ async def get_current_tenant(
     raise HTTPException(status_code=401, detail="Invalid API key or token")
 
 
+async def require_any_tenant(
+    api_key: str | None = Security(api_key_header),
+    bearer: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    """Require authentication with any valid tenant credentials for administrative operations."""
+    if api_key:
+        tenant = get_tenant_by_api_key(api_key)
+        if tenant:
+            return tenant
+    if bearer:
+        try:
+            payload = jwt.decode(bearer.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            tenant_id = payload.get("sub")
+            if tenant_id:
+                tenant = get_tenant(tenant_id)
+                if tenant:
+                    return tenant
+        except JWTError:
+            pass
+    raise HTTPException(status_code=401, detail="Authentication required")
+
+
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class TenantCreate(BaseModel):
@@ -230,7 +252,7 @@ def create_app() -> FastAPI:
 
     # ── Root / Landing ─────────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    async def root():
+    async def root(tenant=Depends(require_any_tenant)):
         tenants_list = list_tenants()
         tenant_rows = ""
         for t in tenants_list:
@@ -306,22 +328,22 @@ def create_app() -> FastAPI:
 
     # ── Tenants ──────────────────────────────────────────────────────────
     @app.post("/api/v1/tenants/", status_code=201, tags=["tenants"])
-    async def create_tenant_ep(body: TenantCreate):
+    async def create_tenant_ep(body: TenantCreate, tenant=Depends(require_any_tenant)):
         return create_tenant(name=body.name, slug=body.slug)
 
     @app.get("/api/v1/tenants/", tags=["tenants"])
-    async def list_tenants_ep():
+    async def list_tenants_ep(tenant=Depends(require_any_tenant)):
         return list_tenants()
 
     @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
-    async def get_tenant_ep(tenant_id: str):
+    async def get_tenant_ep(tenant_id: str, tenant=Depends(require_any_tenant)):
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
         return t
 
     @app.delete("/api/v1/tenants/{tenant_id}", status_code=204, tags=["tenants"])
-    async def delete_tenant_ep(tenant_id: str):
+    async def delete_tenant_ep(tenant_id: str, tenant=Depends(require_any_tenant)):
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
@@ -610,16 +632,16 @@ def create_app() -> FastAPI:
 
     # ── Audit Log ────────────────────────────────────────────────────────
     @app.get("/api/v1/audit-log", tags=["audit"])
-    async def audit_log_ep(limit: int = 100, monitor_id: str = ""):
+    async def audit_log_ep(limit: int = 100, monitor_id: str = "", tenant=Depends(require_any_tenant)):
         return get_audit_log(limit=min(limit, 500), monitor_id=monitor_id)
 
     # ── Server File Storage ──────────────────────────────────────────────
     @app.get("/api/v1/files", tags=["files"])
-    async def list_files_ep():
+    async def list_files_ep(tenant=Depends(require_any_tenant)):
         return list_server_files()
 
     @app.post("/api/v1/files/upload", status_code=201, tags=["files"])
-    async def upload_file_ep(file: UploadFile, description: str = Form("")):
+    async def upload_file_ep(file: UploadFile, description: str = Form(""), tenant=Depends(require_any_tenant)):
         """Upload a file to the server file storage."""
         import os
         storage_dir = os.path.join(

@@ -8,9 +8,52 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi import FastAPI, Request, Form, HTTPException, Security, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from windows.local_version_control import APP_VERSION
+
+
+# ── Auth ─────────────────────────────────────────────────────────────────────
+
+api_key_header = APIKeyHeader(name="X-TS-API-Key", auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def require_auth(
+    api_key: str | None = Security(api_key_header),
+    bearer: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    """Require authentication for management operations."""
+    from windows.local_database import get_tenant_by_api_key, get_tenant
+    
+    if api_key:
+        tenant = get_tenant_by_api_key(api_key)
+        if tenant:
+            return tenant
+    if bearer:
+        try:
+            from jose import jwt, JWTError
+            # Load JWT secret from the same location as the API
+            import secrets as _secrets
+            secret_dir = os.path.join(os.environ.get("LOCALAPPDATA", "."), "TechSentinelMonitor")
+            secret_path = os.path.join(secret_dir, "jwt_secret")
+            try:
+                with open(secret_path, "r", encoding="utf-8") as f:
+                    jwt_secret = f.read().strip()
+            except OSError:
+                jwt_secret = None
+            
+            if jwt_secret:
+                payload = jwt.decode(bearer.credentials, jwt_secret, algorithms=["HS256"])
+                tenant_id = payload.get("sub")
+                if tenant_id:
+                    tenant = get_tenant(tenant_id)
+                    if tenant:
+                        return tenant
+        except (JWTError, ImportError):
+            pass
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 
 # ── Shared CSS ───────────────────────────────────────────────────────────────
@@ -615,7 +658,7 @@ def create_status_app() -> FastAPI:
 
     # ── Manage Monitors Page ─────────────────────────────────────────────
     @app.get("/manage", response_class=HTMLResponse)
-    async def manage_page():
+    async def manage_page(tenant=Depends(require_auth)):
         from windows.local_database import list_tenants, list_monitors, get_recent_results
 
         tenants = list_tenants()
@@ -737,6 +780,7 @@ def create_status_app() -> FastAPI:
         name: str = Form(...), monitor_type: str = Form(...),
         target: str = Form(...), interval_seconds: int = Form(60),
         timeout_seconds: int = Form(10), group_name: str = Form(""),
+        tenant=Depends(require_auth),
     ):
         from windows.local_database import list_tenants, create_tenant, create_monitor
         from windows.local_queue import enqueue_job
@@ -767,7 +811,7 @@ def create_status_app() -> FastAPI:
 
     # ── Edit Monitor (GET form) ──────────────────────────────────────────
     @app.get("/manage/edit/{monitor_id}", response_class=HTMLResponse)
-    async def edit_monitor_form(monitor_id: str):
+    async def edit_monitor_form(monitor_id: str, tenant=Depends(require_auth)):
         from windows.local_database import get_monitor
 
         m = get_monitor(monitor_id)
@@ -843,6 +887,7 @@ def create_status_app() -> FastAPI:
         target: str = Form(...), interval_seconds: int = Form(60),
         timeout_seconds: int = Form(10), status: str = Form("active"),
         group_name: str = Form(""),
+        tenant=Depends(require_auth),
     ):
         from windows.local_database import get_monitor, _get_conn, update_monitor_status
         import json as _json
@@ -866,7 +911,7 @@ def create_status_app() -> FastAPI:
 
     # ── Delete Monitor ───────────────────────────────────────────────────
     @app.get("/manage/delete/{monitor_id}")
-    async def delete_monitor_action(monitor_id: str):
+    async def delete_monitor_action(monitor_id: str, tenant=Depends(require_auth)):
         from windows.local_database import get_monitor, delete_monitor
 
         m = get_monitor(monitor_id)
@@ -878,7 +923,7 @@ def create_status_app() -> FastAPI:
 
     # ── Monitor Detail Page (charts, uptime, history) ────────────────────
     @app.get("/monitor/{monitor_id}", response_class=HTMLResponse)
-    async def monitor_detail(monitor_id: str):
+    async def monitor_detail(monitor_id: str, tenant=Depends(require_auth)):
         from windows.local_database import (
             get_monitor, get_uptime_stats, get_response_time_series,
             get_recent_results, get_incidents, get_avg_response_time,
@@ -1675,7 +1720,7 @@ function loadMsgHistory(){{
 
     # ── RDP File Download Endpoint ───────────────────────────────────
     @app.get("/rdp/{monitor_id}", include_in_schema=False)
-    async def rdp_download(monitor_id: str):
+    async def rdp_download(monitor_id: str, tenant=Depends(require_auth)):
         from windows.local_database import get_monitor
         m = get_monitor(monitor_id)
         if not m:
@@ -1707,7 +1752,7 @@ function loadMsgHistory(){{
         )
 
     @app.get("/vnc/{monitor_id}", include_in_schema=False)
-    async def vnc_redirect(monitor_id: str):
+    async def vnc_redirect(monitor_id: str, tenant=Depends(require_auth)):
         from windows.local_database import get_monitor
         m = get_monitor(monitor_id)
         if not m:
@@ -1725,7 +1770,7 @@ function loadMsgHistory(){{
 
     # ── Incidents Page ───────────────────────────────────────────────────
     @app.get("/incidents", response_class=HTMLResponse)
-    async def incidents_page():
+    async def incidents_page(tenant=Depends(require_auth)):
         from windows.local_database import get_incidents
 
         incidents = get_incidents(limit=100)
@@ -1794,7 +1839,7 @@ document.querySelectorAll('.ts').forEach(function(el){{
 
     # ── Audit Log Page ───────────────────────────────────────────────────
     @app.get("/audit", response_class=HTMLResponse)
-    async def audit_page():
+    async def audit_page(tenant=Depends(require_auth)):
         from windows.local_database import get_audit_log
 
         entries = get_audit_log(limit=200)
@@ -1860,7 +1905,7 @@ document.querySelectorAll('.ts').forEach(function(el){{
 
     # ── File Storage Page ────────────────────────────────────────────────
     @app.get("/files", response_class=HTMLResponse)
-    async def files_page():
+    async def files_page(tenant=Depends(require_auth)):
         from windows.local_database import list_server_files
 
         files = list_server_files(limit=100)
