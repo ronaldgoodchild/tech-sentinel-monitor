@@ -20,6 +20,15 @@ class TenantResponse(BaseModel):
     updated_at: datetime
 
 
+class TenantPublicResponse(BaseModel):
+    """Tenant response without sensitive credentials - used for list/get operations."""
+    id: str
+    name: str
+    slug: str
+    created_at: datetime
+    updated_at: datetime
+
+
 # ── Monitors ─────────────────────────────────────────────────────────────────
 
 class MonitorCreate(BaseModel):
