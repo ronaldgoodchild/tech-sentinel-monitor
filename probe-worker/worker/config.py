@@ -8,7 +8,7 @@ class WorkerSettings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "techsentinel"
     postgres_user: str = "tsadmin"
-    postgres_password: str = "changeme_db_password"
+    postgres_password: str
 
     redis_host: str = "redis"
     redis_port: int = 6379

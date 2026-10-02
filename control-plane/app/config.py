@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "techsentinel"
     postgres_user: str = "tsadmin"
-    postgres_password: str = "changeme_db_password"
+    postgres_password: str
 
     # Redis
     redis_host: str = "redis"
