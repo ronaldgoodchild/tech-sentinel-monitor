@@ -967,7 +967,8 @@ WantedBy=multi-user.target
         print(f"  Uninstall:    python3 {os.path.basename(__file__)} --uninstall")
     except PermissionError:
         print(f"\n  ❌ Permission denied. Run with sudo:")
-        print(f"  sudo python3 {os.path.basename(__file__)} --api-url {api_url} --api-key {api_key} --install")
+        print(f"  sudo python3 {os.path.basename(__file__)} --api-url {api_url} --install")
+        print(f"  Note: Credentials are read from {CONFIG_FILE}")
     except Exception as e:
         print(f"\n  ❌ Install failed: {e}")
 
@@ -1012,12 +1013,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="Tech Sentinel Monitor — Linux System Agent",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Created by Ronald Goodchild / REGTeches",
+        epilog="Created by Ronald Goodchild / REGTeches\n\n"
+               "Security Note: Prefer TS_API_KEY environment variable over --api-key\n"
+               "to avoid credential exposure in process listings.",
     )
     parser.add_argument("--api-url", default="",
                         help="Tech Sentinel API URL (e.g. http://192.168.1.121:8000)")
     parser.add_argument("--api-key", default="",
-                        help="API key for authentication")
+                        help="API key for authentication (prefer TS_API_KEY env var)")
     parser.add_argument("--interval", type=int, default=0,
                         help="Heartbeat interval in seconds (default: 60)")
     parser.add_argument("--once", action="store_true",
@@ -1057,15 +1060,16 @@ def main():
         print("Install it with:  pip3 install requests")
         sys.exit(1)
 
-    # Load saved config, CLI args override
+    # Load saved config, environment variables, then CLI args (in priority order)
     saved_cfg = _load_config()
-    api_url = args.api_url or saved_cfg.get("api_url", "")
-    api_key = args.api_key or saved_cfg.get("api_key", "")
-    interval = args.interval or saved_cfg.get("interval", 60)
+    api_url = args.api_url or os.environ.get("TS_API_URL", "") or saved_cfg.get("api_url", "")
+    api_key = args.api_key or os.environ.get("TS_API_KEY", "") or saved_cfg.get("api_key", "")
+    interval = args.interval or int(os.environ.get("TS_INTERVAL", "0")) or saved_cfg.get("interval", 60)
 
     if not api_url or not api_key:
         print("\nERROR: --api-url and --api-key are required.")
-        print(f"  Config: {CONFIG_FILE}")
+        print(f"  Provide via: --api-key flag, TS_API_KEY env var, or {CONFIG_FILE}")
+        print(f"  Example: TS_API_KEY=your_key python3 {os.path.basename(__file__)} --api-url http://...")
         sys.exit(1)
 
     _save_config(api_url, api_key, interval)

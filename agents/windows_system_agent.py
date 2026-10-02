@@ -1028,7 +1028,8 @@ def _install_service(api_url: str, api_key: str, interval: int = 60):
         print("\n  ❌ Administrator rights required to install the scheduled task.")
         print("  ➡️  Right-click Command Prompt → 'Run as administrator', then re-run:")
         print(f"       python \"{os.path.abspath(__file__)}\" "
-              f"--api-url {api_url} --api-key {api_key} --install")
+              f"--api-url {api_url} --install")
+        print(f"  Note: Credentials are read from {CONFIG_FILE}")
         return
 
     # Save config first so the agent can self-configure on boot
@@ -1266,12 +1267,15 @@ Examples:
   Uninstall:
     python windows_system_agent.py --uninstall
 
+Security Note: Prefer TS_API_KEY environment variable over --api-key
+to avoid credential exposure in process listings.
+
 Created by Ronald Goodchild / REGTeches""",
     )
     parser.add_argument("--api-url", default="",
                         help="Tech Sentinel API URL (e.g. http://192.168.1.121:8000)")
     parser.add_argument("--api-key", default="",
-                        help="API key for authentication")
+                        help="API key for authentication (prefer TS_API_KEY env var)")
     parser.add_argument("--interval", type=int, default=0,
                         help="Heartbeat interval in seconds (default: 60)")
     parser.add_argument("--once", action="store_true",
@@ -1319,16 +1323,16 @@ Created by Ronald Goodchild / REGTeches""",
         print("Install it with:  pip install requests")
         sys.exit(1)
 
-    # Load saved config and merge with CLI args (CLI args override)
+    # Load saved config, environment variables, then CLI args (in priority order)
     saved_cfg = _load_config()
-    api_url = args.api_url or saved_cfg.get("api_url", "")
-    api_key = args.api_key or saved_cfg.get("api_key", "")
-    interval = args.interval or saved_cfg.get("interval", 60)
+    api_url = args.api_url or os.environ.get("TS_API_URL", "") or saved_cfg.get("api_url", "")
+    api_key = args.api_key or os.environ.get("TS_API_KEY", "") or saved_cfg.get("api_key", "")
+    interval = args.interval or int(os.environ.get("TS_INTERVAL", "0")) or saved_cfg.get("interval", 60)
 
     if not api_url or not api_key:
         print("\nERROR: --api-url and --api-key are required.")
-        print("  Either provide them on the command line, or run --install first.")
-        print(f"\n  Saved config location: {CONFIG_FILE}")
+        print(f"  Provide via: --api-key flag, TS_API_KEY env var, or {CONFIG_FILE}")
+        print(f"  Example: set TS_API_KEY=your_key && python {os.path.basename(__file__)} --api-url http://...")
         if saved_cfg:
             print(f"  Found config with: api_url={saved_cfg.get('api_url','?')}")
         else:
