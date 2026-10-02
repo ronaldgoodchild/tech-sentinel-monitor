@@ -111,6 +111,14 @@ class TenantCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9\-]+$")
 
+class TenantPublic(BaseModel):
+    """Public tenant response without sensitive fields."""
+    id: str
+    name: str
+    slug: str
+    created_at: str
+    updated_at: str
+
 class MonitorCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     monitor_type: str = Field(..., pattern=r"^(http|tcp|ping|heartbeat)$")
@@ -236,11 +244,10 @@ def create_app() -> FastAPI:
         for t in tenants_list:
             tenant_rows += f"""<tr>
                 <td>{t['name']}</td><td><code>{t['slug']}</code></td>
-                <td><code style="font-size:0.8em">{t['api_key']}</code></td>
                 <td><code style="font-size:0.8em">{t['id']}</code></td>
             </tr>"""
         if not tenant_rows:
-            tenant_rows = '<tr><td colspan="4" style="text-align:center;color:#888">No tenants yet — run the demo or provision via API</td></tr>'
+            tenant_rows = '<tr><td colspan="3" style="text-align:center;color:#888">No tenants yet — run the demo or provision via API</td></tr>'
 
         return f"""<!DOCTYPE html>
 <html><head>
@@ -277,7 +284,7 @@ def create_app() -> FastAPI:
 <div class="card">
   <h2 style="margin-top:0">🏢 Tenants</h2>
   <table>
-    <tr><th>Name</th><th>Slug</th><th>API Key</th><th>ID</th></tr>
+    <tr><th>Name</th><th>Slug</th><th>ID</th></tr>
     {tenant_rows}
   </table>
 </div>
@@ -309,19 +316,25 @@ def create_app() -> FastAPI:
     async def create_tenant_ep(body: TenantCreate):
         return create_tenant(name=body.name, slug=body.slug)
 
-    @app.get("/api/v1/tenants/", tags=["tenants"])
-    async def list_tenants_ep():
-        return list_tenants()
+    @app.get("/api/v1/tenants/", tags=["tenants"], response_model=list[TenantPublic])
+    async def list_tenants_ep(tenant=Depends(get_current_tenant)):
+        """List all tenants. Requires authentication. Returns sanitized tenant data without API keys."""
+        tenants = list_tenants()
+        # Remove api_key from response
+        return [{k: v for k, v in t.items() if k != 'api_key'} for t in tenants]
 
-    @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
+    @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"], response_model=TenantPublic)
     async def get_tenant_ep(tenant_id: str):
+        """Get a specific tenant's public information (name, slug). API key is excluded."""
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
-        return t
+        # Remove api_key from response
+        return {k: v for k, v in t.items() if k != 'api_key'}
 
     @app.delete("/api/v1/tenants/{tenant_id}", status_code=204, tags=["tenants"])
-    async def delete_tenant_ep(tenant_id: str):
+    async def delete_tenant_ep(tenant_id: str, tenant=Depends(get_current_tenant)):
+        """Delete a tenant. Requires authentication."""
         t = get_tenant(tenant_id)
         if not t:
             raise HTTPException(404, "Tenant not found")
@@ -522,35 +535,48 @@ def create_app() -> FastAPI:
         return create_remote_command(monitor_id, body.command)
 
     @app.get("/api/v1/monitors/{monitor_id}/commands", tags=["remote-commands"])
-    async def list_commands_ep(monitor_id: str, limit: int = 50):
+    async def list_commands_ep(monitor_id: str, limit: int = 50, tenant=Depends(get_current_tenant)):
+        """List command history for a monitor. Requires authentication."""
         m = get_monitor(monitor_id)
         if not m:
             raise HTTPException(404, "Monitor not found")
+        if m["tenant_id"] != tenant["id"]:
+            raise HTTPException(403, "Access denied")
         return get_command_history(monitor_id, limit=min(limit, 200))
 
     @app.get("/api/v1/monitors/{monitor_id}/commands/pending", tags=["remote-commands"])
-    async def pending_commands_ep(monitor_id: str):
-        """Agent polls this endpoint to get pending commands."""
+    async def pending_commands_ep(monitor_id: str, tenant=Depends(get_current_tenant)):
+        """Agent polls this endpoint to get pending commands. Requires authentication."""
         m = get_monitor(monitor_id)
         if not m:
             raise HTTPException(404, "Monitor not found")
+        if m["tenant_id"] != tenant["id"]:
+            raise HTTPException(403, "Access denied")
         return get_pending_commands(monitor_id)
 
     @app.post("/api/v1/commands/{cmd_id}/start", tags=["remote-commands"])
-    async def start_command_ep(cmd_id: str):
-        """Agent marks a command as started."""
+    async def start_command_ep(cmd_id: str, tenant=Depends(get_current_tenant)):
+        """Agent marks a command as started. Requires authentication."""
         cmd = get_command(cmd_id)
         if not cmd:
             raise HTTPException(404, "Command not found")
+        # Verify tenant owns the monitor associated with this command
+        m = get_monitor(cmd.get("monitor_id"))
+        if not m or m["tenant_id"] != tenant["id"]:
+            raise HTTPException(403, "Access denied")
         mark_command_started(cmd_id)
         return {"status": "ok"}
 
     @app.post("/api/v1/commands/{cmd_id}/result", tags=["remote-commands"])
-    async def command_result_ep(cmd_id: str, body: RemoteCommandResult):
-        """Agent reports command execution result."""
+    async def command_result_ep(cmd_id: str, body: RemoteCommandResult, tenant=Depends(get_current_tenant)):
+        """Agent reports command execution result. Requires authentication."""
         cmd = get_command(cmd_id)
         if not cmd:
             raise HTTPException(404, "Command not found")
+        # Verify tenant owns the monitor associated with this command
+        m = get_monitor(cmd.get("monitor_id"))
+        if not m or m["tenant_id"] != tenant["id"]:
+            raise HTTPException(403, "Access denied")
         update_command_result(cmd_id, output=body.output,
                              exit_code=body.exit_code, status=body.status)
         return {"status": "ok"}
