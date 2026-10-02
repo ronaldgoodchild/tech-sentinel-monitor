@@ -4,6 +4,7 @@ Standalone version that reads directly from SQLite instead of calling the API.
 Features: 3-across grid, clickable cards, edit/manage monitors.
 """
 
+import html
 import json
 import os
 from pathlib import Path
@@ -248,10 +249,10 @@ def create_status_app() -> FastAPI:
         page_links = ""
         for p in pages:
             page_links += f"""
-            <a href="/status/{p['slug']}" class="page-card">
-                <div class="page-name">📊 {p['name']}</div>
-                <div class="page-tenant">{p['tenant_name']}</div>
-                <div class="page-url">/status/{p['slug']}</div>
+            <a href="/status/{html.escape(p['slug'])}" class="page-card">
+                <div class="page-name">📊 {html.escape(p['name'])}</div>
+                <div class="page-tenant">{html.escape(p['tenant_name'])}</div>
+                <div class="page-url">/status/{html.escape(p['slug'])}</div>
             </a>"""
 
         if not page_links:
@@ -405,22 +406,22 @@ def create_status_app() -> FastAPI:
             open_link = ""
             if click_url:
                 open_link = (
-                    f'<a href="{click_url}" target="_blank" class="open-link" '
-                    f'onclick="event.stopPropagation()" title="Open {m["target"]}">↗</a>'
+                    f'<a href="{html.escape(click_url)}" target="_blank" class="open-link" '
+                    f'onclick="event.stopPropagation()" title="Open {html.escape(m["target"])}">↗</a>'
                 )
 
             card_html = f"""
             <div class="monitor-card" data-monitor-id="{mid}" onclick="window.location='/monitor/{mid}'" role="link">
                 <div class="monitor-top">
                     <div>
-                        <div class="monitor-name">{icon} {m['name']} {ssl_badge}</div>
-                        <div class="monitor-meta">{m['monitor_type'].upper()} {uptime_badge}</div>
+                        <div class="monitor-name">{icon} {html.escape(m['name'])} {ssl_badge}</div>
+                        <div class="monitor-meta">{html.escape(m['monitor_type'].upper())} {uptime_badge}</div>
                     </div>
                     <div class="status-badge">
                         <span class="status-dot {dot_class}"></span> <span class="status-text">{status_text}</span>
                     </div>
                 </div>
-                <div class="monitor-target" title="{m['target']}">{m['target']} {open_link}</div>
+                <div class="monitor-target" title="{html.escape(m['target'])}">{html.escape(m['target'])} {open_link}</div>
                 <div class="monitor-bottom">
                     <span class="response-time">{resp_text}</span>
                     {sparkline}
@@ -435,7 +436,7 @@ def create_status_app() -> FastAPI:
         monitors_html = ""
         for gname, cards in groups.items():
             if len(groups) > 1:
-                monitors_html += f'<h3 style="color:var(--text-secondary);margin:1.2rem 0 0.5rem;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.05em">{gname}</h3>'
+                monitors_html += f'<h3 style="color:var(--text-secondary);margin:1.2rem 0 0.5rem;font-size:0.9rem;text-transform:uppercase;letter-spacing:0.05em">{html.escape(gname)}</h3>'
             monitors_html += '<div class="monitors-grid">' + "".join(cards) + '</div>'
 
         total = len(statuses)
@@ -459,7 +460,7 @@ def create_status_app() -> FastAPI:
         return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{page['name']} — Status</title>
+<title>{html.escape(page['name'])} — Status</title>
 {favicon_tag}
 <style>{_render_css(css_vars)}
   .ws-indicator {{ display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:0.3rem;vertical-align:middle; }}
@@ -476,8 +477,8 @@ def create_status_app() -> FastAPI:
 <div class="container">
     <header>
         <h1>{branding['header_html']}</h1>
-        <p class="tenant" style="font-size:1.1rem;margin-top:0.3rem">{page['name']}</p>
-        <p class="tenant">{tenant_name}</p>
+        <p class="tenant" style="font-size:1.1rem;margin-top:0.3rem">{html.escape(page['name'])}</p>
+        <p class="tenant">{html.escape(tenant_name)}</p>
     </header>
     <div class="overall-status">
         <span class="badge badge-{overall_class}" id="overall-badge">{overall_text}</span>
@@ -634,21 +635,21 @@ def create_status_app() -> FastAPI:
             s = m["_status"]
             dot_class = f"dot-{s}"
             click_url = _build_clickable_url(m["target"], m["monitor_type"])
-            link = f'<a href="{click_url}" target="_blank">{m["target"]}</a>' if click_url else m["target"]
+            link = f'<a href="{html.escape(click_url)}" target="_blank">{html.escape(m["target"])}</a>' if click_url else html.escape(m["target"])
             grp = m.get("group_name", "") or ""
-            grp_badge = f'<span style="background:#222636;padding:2px 8px;border-radius:10px;font-size:0.75rem;color:#8b8fa3">{grp}</span>' if grp else '<span style="color:#555;font-size:0.75rem">—</span>'
+            grp_badge = f'<span style="background:#222636;padding:2px 8px;border-radius:10px;font-size:0.75rem;color:#8b8fa3">{html.escape(grp)}</span>' if grp else '<span style="color:#555;font-size:0.75rem">—</span>'
 
             rows += f"""<tr>
-                <td><span class="status-dot {dot_class}" style="display:inline-block;vertical-align:middle"></span> {s}</td>
-                <td><strong>{m['name']}</strong></td>
-                <td><code>{m['monitor_type']}</code></td>
+                <td><span class="status-dot {dot_class}" style="display:inline-block;vertical-align:middle"></span> {html.escape(s)}</td>
+                <td><strong>{html.escape(m['name'])}</strong></td>
+                <td><code>{html.escape(m['monitor_type'])}</code></td>
                 <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{link}</td>
                 <td>{grp_badge}</td>
                 <td>{m['interval_seconds']}s</td>
                 <td>
                     <a href="/manage/edit/{m['id']}" class="btn" style="padding:0.3rem 0.6rem;font-size:0.8rem">✏️ Edit</a>
                     <a href="/manage/delete/{m['id']}" class="btn btn-danger" style="padding:0.3rem 0.6rem;font-size:0.8rem"
-                       onclick="return confirm('Delete {m['name']}?')">🗑️</a>
+                       onclick="return confirm('Delete {html.escape(m['name'], quote=True)}?')">🗑️</a>
                 </td>
             </tr>"""
 
@@ -790,7 +791,7 @@ def create_status_app() -> FastAPI:
 
         return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Edit {m['name']} — Tech Sentinel</title>
+<title>Edit {html.escape(m['name'])} — Tech Sentinel</title>
 <style>{_render_css(defaults)}
   .form-card {{ background: var(--bg-card); border-radius: 12px; padding: 2rem; margin-top: 1rem;
     border: 1px solid #333750; max-width: 600px; margin-left: auto; margin-right: auto; }}
@@ -809,13 +810,13 @@ def create_status_app() -> FastAPI:
   <div class="form-card">
     <form action="/manage/edit/{m['id']}" method="post">
       <div class="form-group"><label>Name</label>
-        <input type="text" name="name" value="{m['name']}" required></div>
+        <input type="text" name="name" value="{html.escape(m['name'], quote=True)}" required></div>
       <div class="form-group"><label>Type</label>
         <select name="monitor_type">{type_options}</select></div>
       <div class="form-group"><label>Target</label>
-        <input type="text" name="target" value="{m['target']}" required></div>
+        <input type="text" name="target" value="{html.escape(m['target'], quote=True)}" required></div>
       <div class="form-group"><label>Group</label>
-        <input type="text" name="group_name" value="{m.get('group_name','')}" placeholder="e.g. 📦 NAS Servers"
+        <input type="text" name="group_name" value="{html.escape(m.get('group_name',''), quote=True)}" placeholder="e.g. 📦 NAS Servers"
           list="group-list-edit"></div>
       <datalist id="group-list-edit">
         <option value="🖥️ Agents"><option value="📦 NAS Servers"><option value="🌐 Web Services">
@@ -911,9 +912,9 @@ def create_status_app() -> FastAPI:
             s = r["status"]
             dot = f'<span class="status-dot dot-{s}" style="display:inline-block;vertical-align:middle"></span>'
             ms = f'{r.get("response_time_ms", 0):.0f}ms' if r.get("response_time_ms") else "-"
-            err = r.get("error", "") or ""
+            err = html.escape(r.get("error", "") or "")
             ts = r.get("checked_at", "")[:19]
-            checks_rows += f"<tr><td>{dot} {s}</td><td>{ms}</td><td class='ts'>{ts}</td><td style='color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{err}</td></tr>"
+            checks_rows += f"<tr><td>{dot} {html.escape(s)}</td><td>{ms}</td><td class='ts'>{html.escape(ts)}</td><td style='color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{err}</td></tr>"
 
         # Incidents table
         inc_rows = ""
@@ -924,7 +925,7 @@ def create_status_app() -> FastAPI:
                 mins = inc["duration_sec"] / 60
                 duration = f"{mins:.0f}m" if mins < 60 else f"{mins/60:.1f}h"
             resolved = inc.get("resolved_at", "")[:19] if inc.get("resolved_at") else "Ongoing"
-            inc_rows += f"<tr><td>{event_icon} {inc['event']}</td><td class='ts'>{inc.get('started_at','')[:19]}</td><td class='ts'>{resolved}</td><td>{duration}</td><td style='color:#888'>{inc.get('error','')[:60]}</td></tr>"
+            inc_rows += f"<tr><td>{event_icon} {html.escape(inc['event'])}</td><td class='ts'>{html.escape(inc.get('started_at','')[:19])}</td><td class='ts'>{html.escape(resolved)}</td><td>{html.escape(duration)}</td><td style='color:#888'>{html.escape(inc.get('error','')[:60])}</td></tr>"
 
         if not inc_rows:
             inc_rows = '<tr><td colspan="5" style="text-align:center;color:#888;padding:1rem">No incidents recorded</td></tr>'
@@ -968,37 +969,37 @@ def create_status_app() -> FastAPI:
 
                     disk_rows = ""
                     for d in disks:
-                        drive = d.get("drive", d.get("mount", "?"))
+                        drive = html.escape(d.get("drive", d.get("mount", "?")))
                         pct = d.get("percent_used", 0)
                         bar_color = "#22c55e" if pct < 80 else "#f59e0b" if pct < 95 else "#ef4444"
                         disk_rows += (
                             f'<tr><td>{drive}</td>'
-                            f'<td>{d.get("total_gb", "?")} GB</td>'
-                            f'<td>{d.get("used_gb", "?")} GB</td>'
-                            f'<td>{d.get("free_gb", "?")} GB</td>'
+                            f'<td>{html.escape(str(d.get("total_gb", "?")))} GB</td>'
+                            f'<td>{html.escape(str(d.get("used_gb", "?")))} GB</td>'
+                            f'<td>{html.escape(str(d.get("free_gb", "?")))} GB</td>'
                             f'<td><div style="background:#333;border-radius:4px;height:12px;width:100px;display:inline-block;vertical-align:middle">'
                             f'<div style="background:{bar_color};height:100%;border-radius:4px;width:{pct}%"></div></div> {pct}%</td></tr>'
                         )
 
-                    gpu_text = ", ".join(g.get("name", "?") for g in gpu_list) if gpu_list else "N/A"
-                    load_text = f'{load.get("1min","?")} / {load.get("5min","?")} / {load.get("15min","?")}' if load else ""
+                    gpu_text = html.escape(", ".join(g.get("name", "?") for g in gpu_list)) if gpu_list else "N/A"
+                    load_text = f'{html.escape(str(load.get("1min","?")))} / {html.escape(str(load.get("5min","?")))} / {html.escape(str(load.get("15min","?")))}' if load else ""
 
                     sysinfo_html = f"""
                     <div class="detail-card">
                       <h3 style="margin:0 0 0.75rem;font-size:1rem">💻 System Information</h3>
                       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 2rem;font-size:0.9rem">
-                        <div><span style="color:var(--text-secondary)">Hostname:</span> <strong>{si.get('hostname','?')}</strong></div>
-                        <div><span style="color:var(--text-secondary)">IP:</span> {si.get('local_ip','?')}</div>
-                        <div><span style="color:var(--text-secondary)">OS:</span> {os_info.get('distro','') or os_info.get('edition','?')}</div>
-                        <div><span style="color:var(--text-secondary)">Agent:</span> {si.get('agent_type','?')} v{si.get('agent_version','?')}</div>
-                        <div><span style="color:var(--text-secondary)">CPU:</span> {cpu.get('name','?')} ({cpu.get('cores_logical','?')} cores)</div>
-                        <div><span style="color:var(--text-secondary)">CPU Usage:</span> {cpu.get('usage_percent','?')}%</div>
-                        <div><span style="color:var(--text-secondary)">RAM:</span> {ram.get('used_gb','?')}/{ram.get('total_gb','?')} GB ({ram.get('percent_used','?')}%)</div>
-                        <div><span style="color:var(--text-secondary)">Uptime:</span> {uptime_info.get('uptime_human','?')}</div>
+                        <div><span style="color:var(--text-secondary)">Hostname:</span> <strong>{html.escape(si.get('hostname','?'))}</strong></div>
+                        <div><span style="color:var(--text-secondary)">IP:</span> {html.escape(si.get('local_ip','?'))}</div>
+                        <div><span style="color:var(--text-secondary)">OS:</span> {html.escape(os_info.get('distro','') or os_info.get('edition','?'))}</div>
+                        <div><span style="color:var(--text-secondary)">Agent:</span> {html.escape(si.get('agent_type','?'))} v{html.escape(si.get('agent_version','?'))}</div>
+                        <div><span style="color:var(--text-secondary)">CPU:</span> {html.escape(cpu.get('name','?'))} ({html.escape(str(cpu.get('cores_logical','?')))} cores)</div>
+                        <div><span style="color:var(--text-secondary)">CPU Usage:</span> {html.escape(str(cpu.get('usage_percent','?')))}%</div>
+                        <div><span style="color:var(--text-secondary)">RAM:</span> {html.escape(str(ram.get('used_gb','?')))}/{html.escape(str(ram.get('total_gb','?')))} GB ({html.escape(str(ram.get('percent_used','?')))}%)</div>
+                        <div><span style="color:var(--text-secondary)">Uptime:</span> {html.escape(uptime_info.get('uptime_human','?'))}</div>
                         <div><span style="color:var(--text-secondary)">GPU:</span> {gpu_text}</div>
-                        <div><span style="color:var(--text-secondary)">Python:</span> {si.get('python_version','?')[:20]}</div>
+                        <div><span style="color:var(--text-secondary)">Python:</span> {html.escape(si.get('python_version','?')[:20])}</div>
                         {"<div><span style='color:var(--text-secondary)'>Load:</span> " + load_text + "</div>" if load_text else ""}
-                        <div><span style="color:var(--text-secondary)">Last Report:</span> {si.get('collected_at','?')[:19]}</div>
+                        <div><span style="color:var(--text-secondary)">Last Report:</span> {html.escape(si.get('collected_at','?')[:19])}</div>
                       </div>
                       {"<h4 style='margin:1rem 0 0.5rem;font-size:0.9rem'>💾 Disk Usage</h4><table><tr><th>Drive</th><th>Total</th><th>Used</th><th>Free</th><th>Usage</th></tr>" + disk_rows + "</table>" if disk_rows else ""}
                     </div>"""
@@ -1071,16 +1072,16 @@ def create_status_app() -> FastAPI:
                 cmd_st = cmd.get("status", "?")
                 st_icons = {"pending": "⏳", "running": "🔄", "completed": "✅", "failed": "❌"}
                 status_icon = st_icons.get(cmd_st, "❓")
-                output_preview = (cmd.get("output") or "")[:80]
+                output_preview = html.escape((cmd.get("output") or "")[:80])
                 if len(cmd.get("output") or "") > 80:
                     output_preview += "..."
                 exit_code = cmd.get("exit_code", "")
                 exit_display = f' (exit {exit_code})' if exit_code is not None and cmd_st == "completed" else ""
                 cmd_rows += (
                     f"<tr>"
-                    f"<td>{status_icon} {cmd_st}{exit_display}</td>"
-                    f"<td><code style='font-size:0.8rem'>{cmd.get('command','')[:60]}</code></td>"
-                    f"<td class='ts'>{(cmd.get('created_at') or '')[:19]}</td>"
+                    f"<td>{status_icon} {html.escape(cmd_st)}{exit_display}</td>"
+                    f"<td><code style='font-size:0.8rem'>{html.escape(cmd.get('command','')[:60])}</code></td>"
+                    f"<td class='ts'>{html.escape((cmd.get('created_at') or '')[:19])}</td>"
                     f"<td style='color:#888;font-size:0.8rem;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer' "
                     f"onclick=\"this.style.whiteSpace=this.style.whiteSpace==='pre-wrap'?'nowrap':'pre-wrap'\">{output_preview}</td>"
                     f"</tr>"
@@ -1088,14 +1089,14 @@ def create_status_app() -> FastAPI:
             if not cmd_rows:
                 cmd_rows = '<tr><td colspan="4" style="text-align:center;color:#888;padding:1rem">No commands sent yet</td></tr>'
 
-            ssh_hint = f' &middot; <code>ssh {agent_ip}</code>' if agent_type == "linux" else ""
+            ssh_hint = f' &middot; <code>ssh {html.escape(agent_ip)}</code>' if agent_type == "linux" else ""
             connect_btns = ""
             if agent_ip and agent_ip != "unknown":
                 connect_btns = f"""
-                <a href="/rdp/{monitor_id}" class="tbtn" style="background:#3b82f6">🖥️ RDP ({agent_ip})</a>
+                <a href="/rdp/{monitor_id}" class="tbtn" style="background:#3b82f6">🖥️ RDP ({html.escape(agent_ip)})</a>
                 <a href="/vnc/{monitor_id}" class="tbtn" style="background:#8b5cf6">🔗 VNC</a>
                 <button onclick="sendWoL()" class="tbtn" style="background:#22c55e">⚡ Wake-on-LAN</button>
-                <span style="color:var(--text-secondary);font-size:0.8rem">{agent_hostname}{ssh_hint}</span>"""
+                <span style="color:var(--text-secondary);font-size:0.8rem">{html.escape(agent_hostname)}{ssh_hint}</span>"""
 
             it_tools_html = f"""
             <div class="detail-card">
@@ -1217,7 +1218,7 @@ def create_status_app() -> FastAPI:
 
         return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{m['name']} — Monitor Detail</title>
+<title>{html.escape(m['name'])} — Monitor Detail</title>
 <style>{_render_css(defaults)}
   .ws-indicator {{ display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:0.3rem;vertical-align:middle; }}
   .ws-connected {{ background:#22c55e;box-shadow:0 0 4px #22c55e; }}
@@ -1251,12 +1252,12 @@ def create_status_app() -> FastAPI:
   <div class="detail-card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
       <div>
-        <h1 style="font-size:1.4rem;margin:0">{icon} {m['name']}</h1>
-        <p style="color:var(--text-secondary);margin:0.25rem 0">{m['monitor_type'].upper()} &middot; {m['target']}</p>
+        <h1 style="font-size:1.4rem;margin:0">{icon} {html.escape(m['name'])}</h1>
+        <p style="color:var(--text-secondary);margin:0.25rem 0">{html.escape(m['monitor_type'].upper())} &middot; {html.escape(m['target'])}</p>
         {ssl_info}
       </div>
       <div class="status-badge" style="font-size:1.1rem">
-        <span class="status-dot dot-{cur_status}" style="width:12px;height:12px"></span> {cur_status.upper()}
+        <span class="status-dot dot-{cur_status}" style="width:12px;height:12px"></span> {html.escape(cur_status.upper())}
       </div>
     </div>
     {maint_info}
@@ -1739,13 +1740,13 @@ function loadMsgHistory(){{
             resolved = inc.get("resolved_at", "")[:19] if inc.get("resolved_at") else '<span style="color:#ef4444">Ongoing</span>'
             channels = ", ".join(json.loads(inc.get("channels_notified", "[]"))) if inc.get("channels_notified") else "-"
             rows += f"""<tr>
-                <td>{event_icon} {inc['event']}</td>
-                <td><strong>{inc.get('monitor_name','?')}</strong></td>
-                <td class="ts">{inc.get('started_at','')[:19]}</td>
+                <td>{event_icon} {html.escape(inc['event'])}</td>
+                <td><strong>{html.escape(inc.get('monitor_name','?'))}</strong></td>
+                <td class="ts">{html.escape(inc.get('started_at','')[:19])}</td>
                 <td class="ts">{resolved}</td>
-                <td>{duration}</td>
-                <td style="color:#888">{channels}</td>
-                <td style="color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{inc.get('error','')[:80]}</td>
+                <td>{html.escape(duration)}</td>
+                <td style="color:#888">{html.escape(channels)}</td>
+                <td style="color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{html.escape(inc.get('error','')[:80])}</td>
             </tr>"""
 
         if not rows:
@@ -1806,12 +1807,12 @@ document.querySelectorAll('.ts').forEach(function(el){{
                            "process_kill": "💀", "login": "🔑"}
             icon = action_icons.get(action, "📝")
             rows += f"""<tr>
-                <td class="ts">{(e.get('timestamp',''))[:19]}</td>
-                <td>{icon} {action}</td>
-                <td>{e.get('target_type','')}</td>
-                <td><strong>{e.get('target_name','')}</strong></td>
-                <td style="color:#888;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{e.get('detail','')[:80]}</td>
-                <td style="color:#888">{e.get('user','')}</td>
+                <td class="ts">{html.escape((e.get('timestamp',''))[:19])}</td>
+                <td>{icon} {html.escape(action)}</td>
+                <td>{html.escape(e.get('target_type',''))}</td>
+                <td><strong>{html.escape(e.get('target_name',''))}</strong></td>
+                <td style="color:#888;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{html.escape(e.get('detail','')[:80])}</td>
+                <td style="color:#888">{html.escape(e.get('user',''))}</td>
             </tr>"""
 
         if not rows:
@@ -1877,11 +1878,11 @@ document.querySelectorAll('.ts').forEach(function(el){{
                 size_str = f"{size} B"
 
             rows += f"""<tr>
-                <td>📄 <strong>{f.get('original_name','?')}</strong></td>
+                <td>📄 <strong>{html.escape(f.get('original_name','?'))}</strong></td>
                 <td>{size_str}</td>
-                <td style="color:#888">{f.get('description','')}</td>
+                <td style="color:#888">{html.escape(f.get('description',''))}</td>
                 <td>{f.get('download_count',0)}</td>
-                <td class="ts">{(f.get('created_at',''))[:19]}</td>
+                <td class="ts">{html.escape((f.get('created_at',''))[:19])}</td>
                 <td>
                   <a href="/api/v1/files/{f['id']}/download" style="color:#3b82f6;text-decoration:none">⬇ Download</a>
                 </td>
