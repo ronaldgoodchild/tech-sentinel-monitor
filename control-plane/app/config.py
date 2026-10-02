@@ -1,6 +1,21 @@
 """Application configuration loaded from environment variables."""
 
+import sys
 from pydantic_settings import BaseSettings
+
+# Known insecure JWT secrets that must be rejected
+INSECURE_JWT_SECRETS = {
+    "changeme",
+    "changeme_jwt_secret",
+    "secret",
+    "jwt_secret",
+    "default",
+    "test",
+    "dev",
+    "development",
+    "password",
+    "admin",
+}
 
 
 class Settings(BaseSettings):
@@ -47,5 +62,32 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
+    def validate_jwt_secret(self) -> None:
+        """Validate that JWT secret is not a known insecure default.
+
+        This prevents tenant impersonation attacks by ensuring the application
+        fails closed when deployed with a predictable signing key.
+        """
+        if self.ts_jwt_secret in INSECURE_JWT_SECRETS:
+            print(
+                f"FATAL: TS_JWT_SECRET is set to a known insecure default value. "
+                f"This allows attackers to forge authentication tokens and impersonate tenants. "
+                f"Set TS_JWT_SECRET to a cryptographically random value (minimum 32 bytes). "
+                f"Example: openssl rand -base64 32",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        if len(self.ts_jwt_secret) < 32:
+            print(
+                f"FATAL: TS_JWT_SECRET is too short ({len(self.ts_jwt_secret)} bytes). "
+                f"For HS256, the secret must be at least 32 bytes to prevent brute-force attacks. "
+                f"Set TS_JWT_SECRET to a cryptographically random value. "
+                f"Example: openssl rand -base64 32",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
 
 settings = Settings()
+settings.validate_jwt_secret()
