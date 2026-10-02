@@ -406,6 +406,8 @@ class TechSentinelLauncher:
             ("Probe Concurrency:", "5"),
             ("Probe Interval (sec):", "60"),
             ("Alert Threshold:", "3"),
+            ("SSL Cert Path:", ""),
+            ("SSL Key Path:", ""),
         ]
 
         self.settings_vars = {}
@@ -623,19 +625,27 @@ class TechSentinelLauncher:
 
     def _open_api(self):
         port = self.settings_vars.get("API Port:", tk.StringVar(value="8000")).get()
-        webbrowser.open(f"http://{self._get_browse_ip()}:{port}")
+        ssl_cert = self.settings_vars.get("SSL Cert Path:", tk.StringVar(value="")).get().strip()
+        scheme = "https" if ssl_cert else "http"
+        webbrowser.open(f"{scheme}://{self._get_browse_ip()}:{port}")
 
     def _open_docs(self):
         port = self.settings_vars.get("API Port:", tk.StringVar(value="8000")).get()
-        webbrowser.open(f"http://{self._get_browse_ip()}:{port}/docs")
+        ssl_cert = self.settings_vars.get("SSL Cert Path:", tk.StringVar(value="")).get().strip()
+        scheme = "https" if ssl_cert else "http"
+        webbrowser.open(f"{scheme}://{self._get_browse_ip()}:{port}/docs")
 
     def _open_status(self):
         port = self.settings_vars.get("Status Page Port:", tk.StringVar(value="8001")).get()
-        webbrowser.open(f"http://{self._get_browse_ip()}:{port}")
+        ssl_cert = self.settings_vars.get("SSL Cert Path:", tk.StringVar(value="")).get().strip()
+        scheme = "https" if ssl_cert else "http"
+        webbrowser.open(f"{scheme}://{self._get_browse_ip()}:{port}")
 
     def _open_incidents(self):
         port = self.settings_vars.get("Status Page Port:", tk.StringVar(value="8001")).get()
-        webbrowser.open(f"http://{self._get_browse_ip()}:{port}/incidents")
+        ssl_cert = self.settings_vars.get("SSL Cert Path:", tk.StringVar(value="")).get().strip()
+        scheme = "https" if ssl_cert else "http"
+        webbrowser.open(f"{scheme}://{self._get_browse_ip()}:{port}/incidents")
 
     # ── Service Control ──────────────────────────────────────────────────────
 
@@ -715,8 +725,30 @@ class TechSentinelLauncher:
         from windows.local_api import create_app
 
         app = create_app()
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
-                                log_level="warning", log_config=None)
+        
+        # Check for SSL configuration
+        ssl_cert = self.settings_vars.get("SSL Cert Path:", tk.StringVar(value="")).get().strip()
+        ssl_key = self.settings_vars.get("SSL Key Path:", tk.StringVar(value="")).get().strip()
+        
+        # Validate SSL configuration
+        if ssl_cert and ssl_key:
+            if not os.path.isfile(ssl_cert):
+                raise ValueError(f"SSL certificate file not found: {ssl_cert}")
+            if not os.path.isfile(ssl_key):
+                raise ValueError(f"SSL key file not found: {ssl_key}")
+            logger.info("Starting API with TLS enabled (cert: %s)", ssl_cert)
+            config = uvicorn.Config(app, host="0.0.0.0", port=port,
+                                    log_level="warning", log_config=None,
+                                    ssl_certfile=ssl_cert, ssl_keyfile=ssl_key)
+        elif ssl_cert or ssl_key:
+            raise ValueError("Both SSL Cert Path and SSL Key Path must be provided for TLS")
+        else:
+            logger.warning("⚠️  SECURITY WARNING: API starting without TLS - traffic is unencrypted!")
+            logger.warning("⚠️  Tenant API keys and agent commands will be transmitted in plaintext.")
+            logger.warning("⚠️  Configure SSL Cert Path and SSL Key Path in Settings to enable TLS.")
+            config = uvicorn.Config(app, host="0.0.0.0", port=port,
+                                    log_level="warning", log_config=None)
+        
         self.uvicorn_server = uvicorn.Server(config)
 
         thread = threading.Thread(target=self.uvicorn_server.run, daemon=True, name="api-server")
@@ -733,8 +765,20 @@ class TechSentinelLauncher:
         from windows.local_status_page import create_status_app
         app = create_status_app()
 
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
-                                log_level="warning", log_config=None)
+        # Check for SSL configuration (same as API)
+        ssl_cert = self.settings_vars.get("SSL Cert Path:", tk.StringVar(value="")).get().strip()
+        ssl_key = self.settings_vars.get("SSL Key Path:", tk.StringVar(value="")).get().strip()
+        
+        if ssl_cert and ssl_key:
+            logger.info("Starting Status Page with TLS enabled")
+            config = uvicorn.Config(app, host="0.0.0.0", port=port,
+                                    log_level="warning", log_config=None,
+                                    ssl_certfile=ssl_cert, ssl_keyfile=ssl_key)
+        else:
+            logger.warning("⚠️  Status Page starting without TLS - WebSocket traffic is unencrypted!")
+            config = uvicorn.Config(app, host="0.0.0.0", port=port,
+                                    log_level="warning", log_config=None)
+        
         self.status_server = uvicorn.Server(config)
 
         thread = threading.Thread(target=self.status_server.run, daemon=True, name="status-server")

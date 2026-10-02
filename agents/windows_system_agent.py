@@ -12,7 +12,7 @@ Optional (for richer data):
     pip install psutil
 
 Usage:
-    python windows_system_agent.py --api-url http://192.168.1.121:8000 --api-key YOUR_KEY
+    python windows_system_agent.py --api-url https://192.168.1.121:8000 --api-key YOUR_KEY
     python windows_system_agent.py --print          # Just show system info
     python windows_system_agent.py --once            # Send once and exit
 
@@ -742,6 +742,15 @@ def get_or_create_monitor(api_url: str, api_key: str, hostname: str) -> str | No
         print("ERROR: 'requests' package required. Install: pip install requests")
         return None
 
+    # SECURITY: Validate URL scheme to prevent plaintext transmission of API keys
+    if not api_url.startswith("https://"):
+        print("ERROR: API URL must use HTTPS to protect tenant API keys in transit.")
+        print(f"       Provided URL: {api_url}")
+        print("       The control plane must be configured with TLS certificates.")
+        print("       Using HTTP exposes your tenant API key to network eavesdropping")
+        print("       and allows attackers to inject malicious commands.")
+        return None
+
     headers = {"X-TS-API-Key": api_key}
     external_id = f"sys-agent-win-{hostname}"
 
@@ -1252,10 +1261,10 @@ def main():
         epilog="""
 Examples:
   First-time setup (interactive):
-    python windows_system_agent.py --api-url http://192.168.1.121:8000 --api-key YOUR_KEY --install
+    python windows_system_agent.py --api-url https://192.168.1.121:8000 --api-key YOUR_KEY --install
 
   Run manually (foreground):
-    python windows_system_agent.py --api-url http://192.168.1.121:8000 --api-key YOUR_KEY
+    python windows_system_agent.py --api-url https://192.168.1.121:8000 --api-key YOUR_KEY
 
   Run from saved config:
     python windows_system_agent.py
@@ -1269,7 +1278,7 @@ Examples:
 Created by Ronald Goodchild / REGTeches""",
     )
     parser.add_argument("--api-url", default="",
-                        help="Tech Sentinel API URL (e.g. http://192.168.1.121:8000)")
+                        help="Tech Sentinel API URL (e.g. https://192.168.1.121:8000)")
     parser.add_argument("--api-key", default="",
                         help="API key for authentication")
     parser.add_argument("--interval", type=int, default=0,
