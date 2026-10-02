@@ -400,7 +400,7 @@ class TechSentinelLauncher:
                   style="Card.TLabel", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=15, pady=(10, 10))
 
         fields = [
-            ("Server IP:", "0.0.0.0"),
+            ("Server IP:", "127.0.0.1"),
             ("API Port:", "8000"),
             ("Status Page Port:", "8001"),
             ("Probe Concurrency:", "5"),
@@ -607,8 +607,8 @@ class TechSentinelLauncher:
 
     def _get_browse_ip(self):
         """Get the IP/hostname for browser URLs. Uses Server IP setting,
-        but substitutes localhost if set to 0.0.0.0 (bind-all)."""
-        ip = self.settings_vars.get("Server IP:", tk.StringVar(value="0.0.0.0")).get().strip()
+        but substitutes localhost if set to 127.0.0.1 or 0.0.0.0 (bind-all)."""
+        ip = self.settings_vars.get("Server IP:", tk.StringVar(value="127.0.0.1")).get().strip()
         if not ip or ip == "0.0.0.0":
             import socket
             try:
@@ -619,6 +619,8 @@ class TechSentinelLauncher:
                 s.close()
             except Exception:
                 ip = "localhost"
+        elif ip == "127.0.0.1":
+            ip = "localhost"
         return ip
 
     def _open_api(self):
@@ -715,7 +717,11 @@ class TechSentinelLauncher:
         from windows.local_api import create_app
 
         app = create_app()
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
+        # Use configured Server IP, defaulting to 127.0.0.1 for security
+        host = self.settings_vars.get("Server IP:", tk.StringVar(value="127.0.0.1")).get().strip()
+        if not host:
+            host = "127.0.0.1"
+        config = uvicorn.Config(app, host=host, port=port,
                                 log_level="warning", log_config=None)
         self.uvicorn_server = uvicorn.Server(config)
 
@@ -733,7 +739,11 @@ class TechSentinelLauncher:
         from windows.local_status_page import create_status_app
         app = create_status_app()
 
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
+        # Use configured Server IP, defaulting to 127.0.0.1 for security
+        host = self.settings_vars.get("Server IP:", tk.StringVar(value="127.0.0.1")).get().strip()
+        if not host:
+            host = "127.0.0.1"
+        config = uvicorn.Config(app, host=host, port=port,
                                 log_level="warning", log_config=None)
         self.status_server = uvicorn.Server(config)
 
