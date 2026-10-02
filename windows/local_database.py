@@ -282,6 +282,28 @@ def delete_tenant(tenant_id: str):
 
 # ── Monitors ─────────────────────────────────────────────────────────────────
 
+# Global and per-tenant monitor quotas to prevent resource exhaustion
+GLOBAL_MONITOR_QUOTA = 1000
+PER_TENANT_MONITOR_QUOTA = 500
+
+
+def count_all_monitors() -> int:
+    """Count total active monitors across all tenants."""
+    conn = _get_conn()
+    row = conn.execute("SELECT COUNT(*) as cnt FROM monitors WHERE status = 'active'").fetchone()
+    return row["cnt"] if row else 0
+
+
+def count_tenant_monitors(tenant_id: str) -> int:
+    """Count active monitors for a specific tenant."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT COUNT(*) as cnt FROM monitors WHERE tenant_id = ? AND status = 'active'",
+        (tenant_id,)
+    ).fetchone()
+    return row["cnt"] if row else 0
+
+
 def create_monitor(
     tenant_id: str, name: str, monitor_type: str, target: str,
     interval_seconds: int = 60, timeout_seconds: int = 10,
@@ -289,6 +311,23 @@ def create_monitor(
     group_name: str = "",
 ) -> dict:
     conn = _get_conn()
+    
+    # Enforce global monitor quota to prevent unbounded resource exhaustion
+    total_monitors = count_all_monitors()
+    if total_monitors >= GLOBAL_MONITOR_QUOTA:
+        raise ValueError(
+            f"Global monitor quota exceeded ({GLOBAL_MONITOR_QUOTA}). "
+            "Cannot create more monitors."
+        )
+    
+    # Enforce per-tenant monitor quota to prevent single-tenant exhaustion
+    tenant_monitors = count_tenant_monitors(tenant_id)
+    if tenant_monitors >= PER_TENANT_MONITOR_QUOTA:
+        raise ValueError(
+            f"Tenant monitor quota exceeded ({PER_TENANT_MONITOR_QUOTA}). "
+            "Cannot create more monitors for this tenant."
+        )
+    
     monitor_id = _uuid()
     now = _now()
     config_json = json.dumps(config or {})

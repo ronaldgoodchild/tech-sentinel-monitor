@@ -330,14 +330,19 @@ def create_app() -> FastAPI:
     # ── Monitors ─────────────────────────────────────────────────────────
     @app.post("/api/v1/monitors/", status_code=201, tags=["monitors"])
     async def create_monitor_ep(body: MonitorCreate, tenant=Depends(get_current_tenant)):
-        monitor = create_monitor(
-            tenant_id=tenant["id"], name=body.name,
-            monitor_type=body.monitor_type, target=body.target,
-            interval_seconds=body.interval_seconds,
-            timeout_seconds=body.timeout_seconds,
-            external_id=body.external_id, config=body.config,
-            group_name=body.group_name,
-        )
+        try:
+            monitor = create_monitor(
+                tenant_id=tenant["id"], name=body.name,
+                monitor_type=body.monitor_type, target=body.target,
+                interval_seconds=body.interval_seconds,
+                timeout_seconds=body.timeout_seconds,
+                external_id=body.external_id, config=body.config,
+                group_name=body.group_name,
+            )
+        except ValueError as e:
+            # Quota exceeded
+            raise HTTPException(status_code=400, detail=str(e))
+        
         # Enqueue for local probe worker
         enqueue_job({
             "monitor_id": monitor["id"],
