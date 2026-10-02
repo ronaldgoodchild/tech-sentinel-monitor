@@ -4,6 +4,7 @@ Standalone version that reads directly from SQLite instead of calling the API.
 Features: 3-across grid, clickable cards, edit/manage monitors.
 """
 
+import html
 import json
 import os
 from pathlib import Path
@@ -247,10 +248,13 @@ def create_status_app() -> FastAPI:
 
         page_links = ""
         for p in pages:
+            # HTML-escape tenant name and page name to prevent XSS
+            safe_tenant_name = html.escape(p['tenant_name'])
+            safe_page_name = html.escape(p['name'])
             page_links += f"""
             <a href="/status/{p['slug']}" class="page-card">
-                <div class="page-name">📊 {p['name']}</div>
-                <div class="page-tenant">{p['tenant_name']}</div>
+                <div class="page-name">📊 {safe_page_name}</div>
+                <div class="page-tenant">{safe_tenant_name}</div>
                 <div class="page-url">/status/{p['slug']}</div>
             </a>"""
 
@@ -324,7 +328,8 @@ def create_status_app() -> FastAPI:
         monitor_ids = json.loads(page.get("monitor_ids", "[]")) if isinstance(page.get("monitor_ids"), str) else page.get("monitor_ids", [])
         theme = json.loads(page.get("theme", "{}")) if isinstance(page.get("theme"), str) else page.get("theme", {})
         tenant = get_tenant(page["tenant_id"])
-        tenant_name = tenant["name"] if tenant else "Unknown"
+        # HTML-escape tenant name to prevent XSS
+        tenant_name = html.escape(tenant["name"]) if tenant else "Unknown"
 
         # Group monitors by group_name, agents first
         groups: dict[str, list] = {}
@@ -404,23 +409,29 @@ def create_status_app() -> FastAPI:
             click_url = _build_clickable_url(m["target"], m["monitor_type"])
             open_link = ""
             if click_url:
+                # HTML-escape target for title attribute
+                safe_target_attr = html.escape(m["target"])
                 open_link = (
                     f'<a href="{click_url}" target="_blank" class="open-link" '
-                    f'onclick="event.stopPropagation()" title="Open {m["target"]}">↗</a>'
+                    f'onclick="event.stopPropagation()" title="Open {safe_target_attr}">↗</a>'
                 )
 
+            # HTML-escape monitor name and target to prevent XSS
+            safe_name = html.escape(m['name'])
+            safe_target = html.escape(m['target'])
+            
             card_html = f"""
             <div class="monitor-card" data-monitor-id="{mid}" onclick="window.location='/monitor/{mid}'" role="link">
                 <div class="monitor-top">
                     <div>
-                        <div class="monitor-name">{icon} {m['name']} {ssl_badge}</div>
+                        <div class="monitor-name">{icon} {safe_name} {ssl_badge}</div>
                         <div class="monitor-meta">{m['monitor_type'].upper()} {uptime_badge}</div>
                     </div>
                     <div class="status-badge">
                         <span class="status-dot {dot_class}"></span> <span class="status-text">{status_text}</span>
                     </div>
                 </div>
-                <div class="monitor-target" title="{m['target']}">{m['target']} {open_link}</div>
+                <div class="monitor-target" title="{safe_target}">{safe_target} {open_link}</div>
                 <div class="monitor-bottom">
                     <span class="response-time">{resp_text}</span>
                     {sparkline}
@@ -455,11 +466,14 @@ def create_status_app() -> FastAPI:
         css_vars = {k: theme.get(k, v) for k, v in defaults.items()}
 
         favicon_tag = f'<link rel="icon" href="{branding["favicon_url"]}">' if branding.get("favicon_url") else ""
+        
+        # HTML-escape page name to prevent XSS
+        safe_page_name = html.escape(page['name'])
 
         return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{page['name']} — Status</title>
+<title>{safe_page_name} — Status</title>
 {favicon_tag}
 <style>{_render_css(css_vars)}
   .ws-indicator {{ display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:0.3rem;vertical-align:middle; }}
@@ -476,7 +490,7 @@ def create_status_app() -> FastAPI:
 <div class="container">
     <header>
         <h1>{branding['header_html']}</h1>
-        <p class="tenant" style="font-size:1.1rem;margin-top:0.3rem">{page['name']}</p>
+        <p class="tenant" style="font-size:1.1rem;margin-top:0.3rem">{safe_page_name}</p>
         <p class="tenant">{tenant_name}</p>
     </header>
     <div class="overall-status">
@@ -626,7 +640,8 @@ def create_status_app() -> FastAPI:
                 results = get_recent_results(m["id"], limit=1)
                 s = results[0]["status"] if results else "pending"
                 m["_status"] = s
-                m["_tenant_name"] = t["name"]
+                # HTML-escape tenant name to prevent XSS
+                m["_tenant_name"] = html.escape(t["name"])
                 all_monitors.append(m)
 
         rows = ""
@@ -634,13 +649,17 @@ def create_status_app() -> FastAPI:
             s = m["_status"]
             dot_class = f"dot-{s}"
             click_url = _build_clickable_url(m["target"], m["monitor_type"])
-            link = f'<a href="{click_url}" target="_blank">{m["target"]}</a>' if click_url else m["target"]
+            # HTML-escape monitor name and target to prevent XSS
+            safe_name = html.escape(m['name'])
+            safe_target = html.escape(m["target"])
+            link = f'<a href="{click_url}" target="_blank">{safe_target}</a>' if click_url else safe_target
             grp = m.get("group_name", "") or ""
-            grp_badge = f'<span style="background:#222636;padding:2px 8px;border-radius:10px;font-size:0.75rem;color:#8b8fa3">{grp}</span>' if grp else '<span style="color:#555;font-size:0.75rem">—</span>'
+            safe_grp = html.escape(grp) if grp else ""
+            grp_badge = f'<span style="background:#222636;padding:2px 8px;border-radius:10px;font-size:0.75rem;color:#8b8fa3">{safe_grp}</span>' if grp else '<span style="color:#555;font-size:0.75rem">—</span>'
 
             rows += f"""<tr>
                 <td><span class="status-dot {dot_class}" style="display:inline-block;vertical-align:middle"></span> {s}</td>
-                <td><strong>{m['name']}</strong></td>
+                <td><strong>{safe_name}</strong></td>
                 <td><code>{m['monitor_type']}</code></td>
                 <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{link}</td>
                 <td>{grp_badge}</td>
@@ -648,7 +667,7 @@ def create_status_app() -> FastAPI:
                 <td>
                     <a href="/manage/edit/{m['id']}" class="btn" style="padding:0.3rem 0.6rem;font-size:0.8rem">✏️ Edit</a>
                     <a href="/manage/delete/{m['id']}" class="btn btn-danger" style="padding:0.3rem 0.6rem;font-size:0.8rem"
-                       onclick="return confirm('Delete {m['name']}?')">🗑️</a>
+                       onclick="return confirm('Delete monitor?')">🗑️</a>
                 </td>
             </tr>"""
 
@@ -740,6 +759,13 @@ def create_status_app() -> FastAPI:
     ):
         from windows.local_database import list_tenants, create_tenant, create_monitor
         from windows.local_queue import enqueue_job
+        import re
+
+        # Validate input to prevent HTML injection
+        if re.search(r'[<>&"\']', name):
+            raise HTTPException(400, "Monitor name must not contain HTML metacharacters (< > & \" ')")
+        if group_name and re.search(r'[<>&"\']', group_name):
+            raise HTTPException(400, "Group name must not contain HTML metacharacters (< > & \" ')")
 
         tenants = list_tenants()
         if not tenants:
@@ -788,9 +814,14 @@ def create_status_app() -> FastAPI:
             sel = "selected" if s == m["status"] else ""
             status_options += f'<option value="{s}" {sel}>{s.capitalize()}</option>'
 
+        # HTML-escape monitor fields to prevent XSS in form
+        safe_name = html.escape(m['name'])
+        safe_target = html.escape(m['target'])
+        safe_group = html.escape(m.get('group_name', ''))
+
         return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Edit {m['name']} — Tech Sentinel</title>
+<title>Edit {safe_name} — Tech Sentinel</title>
 <style>{_render_css(defaults)}
   .form-card {{ background: var(--bg-card); border-radius: 12px; padding: 2rem; margin-top: 1rem;
     border: 1px solid #333750; max-width: 600px; margin-left: auto; margin-right: auto; }}
@@ -809,13 +840,13 @@ def create_status_app() -> FastAPI:
   <div class="form-card">
     <form action="/manage/edit/{m['id']}" method="post">
       <div class="form-group"><label>Name</label>
-        <input type="text" name="name" value="{m['name']}" required></div>
+        <input type="text" name="name" value="{safe_name}" required></div>
       <div class="form-group"><label>Type</label>
         <select name="monitor_type">{type_options}</select></div>
       <div class="form-group"><label>Target</label>
-        <input type="text" name="target" value="{m['target']}" required></div>
+        <input type="text" name="target" value="{safe_target}" required></div>
       <div class="form-group"><label>Group</label>
-        <input type="text" name="group_name" value="{m.get('group_name','')}" placeholder="e.g. 📦 NAS Servers"
+        <input type="text" name="group_name" value="{safe_group}" placeholder="e.g. 📦 NAS Servers"
           list="group-list-edit"></div>
       <datalist id="group-list-edit">
         <option value="🖥️ Agents"><option value="📦 NAS Servers"><option value="🌐 Web Services">
@@ -847,10 +878,17 @@ def create_status_app() -> FastAPI:
         from windows.local_database import get_monitor, _get_conn, update_monitor_status
         import json as _json
         from datetime import datetime, timezone
+        import re
 
         m = get_monitor(monitor_id)
         if not m:
             raise HTTPException(404, "Monitor not found")
+
+        # Validate input to prevent HTML injection
+        if re.search(r'[<>&"\']', name):
+            raise HTTPException(400, "Monitor name must not contain HTML metacharacters (< > & \" ')")
+        if group_name and re.search(r'[<>&"\']', group_name):
+            raise HTTPException(400, "Group name must not contain HTML metacharacters (< > & \" ')")
 
         conn = _get_conn()
         conn.execute(
@@ -1215,9 +1253,13 @@ def create_status_app() -> FastAPI:
                      "text_primary": "#e1e4ed", "text_secondary": "#8b8fa3",
                      "accent": branding.get("accent_color", "#3b82f6")}
 
+        # HTML-escape monitor name and target to prevent XSS
+        safe_name = html.escape(m['name'])
+        safe_target = html.escape(m['target'])
+
         return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{m['name']} — Monitor Detail</title>
+<title>{safe_name} — Monitor Detail</title>
 <style>{_render_css(defaults)}
   .ws-indicator {{ display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:0.3rem;vertical-align:middle; }}
   .ws-connected {{ background:#22c55e;box-shadow:0 0 4px #22c55e; }}
@@ -1251,8 +1293,8 @@ def create_status_app() -> FastAPI:
   <div class="detail-card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
       <div>
-        <h1 style="font-size:1.4rem;margin:0">{icon} {m['name']}</h1>
-        <p style="color:var(--text-secondary);margin:0.25rem 0">{m['monitor_type'].upper()} &middot; {m['target']}</p>
+        <h1 style="font-size:1.4rem;margin:0">{icon} {safe_name}</h1>
+        <p style="color:var(--text-secondary);margin:0.25rem 0">{m['monitor_type'].upper()} &middot; {safe_target}</p>
         {ssl_info}
       </div>
       <div class="status-badge" style="font-size:1.1rem">

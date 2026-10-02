@@ -4,9 +4,11 @@ Standalone FastAPI server for Windows operation without Docker.
 Same endpoints as the Docker control-plane, but uses SQLite + in-memory queue.
 """
 
+import html
 import json
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
@@ -14,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Depends, Security, status, UploadFil
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from jose import JWTError, jwt
 
 from windows.local_database import (
@@ -35,6 +37,17 @@ from windows.local_queue import enqueue_job
 from windows.local_version_control import APP_VERSION
 
 logger = logging.getLogger("ts.local_api")
+
+# ── Security Utilities ───────────────────────────────────────────────────────
+
+def _validate_no_html(value: str, field_name: str) -> str:
+    """Validate that a string does not contain HTML metacharacters.
+    
+    Prevents stored XSS by rejecting input containing HTML special characters.
+    """
+    if re.search(r'[<>&"\']', value):
+        raise ValueError(f"{field_name} must not contain HTML metacharacters (< > & \" ')")
+    return value
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
@@ -105,11 +118,39 @@ async def get_current_tenant(
     raise HTTPException(status_code=401, detail="Invalid API key or token")
 
 
+async def get_current_tenant_optional(
+    api_key: str | None = Security(api_key_header),
+    bearer: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+):
+    """Optional authentication - returns None if no valid credentials provided."""
+    if api_key:
+        tenant = get_tenant_by_api_key(api_key)
+        if tenant:
+            return tenant
+    if bearer:
+        try:
+            payload = jwt.decode(bearer.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            tenant_id = payload.get("sub")
+            if tenant_id:
+                tenant = get_tenant(tenant_id)
+                if tenant:
+                    return tenant
+        except JWTError:
+            pass
+    return None
+
+
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class TenantCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9\-]+$")
+    
+    @field_validator('name')
+    @classmethod
+    def validate_name_no_html(cls, v: str) -> str:
+        """Prevent HTML injection in tenant names."""
+        return _validate_no_html(v, "Tenant name")
 
 class MonitorCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
@@ -120,6 +161,20 @@ class MonitorCreate(BaseModel):
     external_id: str | None = None
     config: dict | None = None
     group_name: str = Field(default="", max_length=100)
+    
+    @field_validator('name')
+    @classmethod
+    def validate_name_no_html(cls, v: str) -> str:
+        """Prevent HTML injection in monitor names."""
+        return _validate_no_html(v, "Monitor name")
+    
+    @field_validator('group_name')
+    @classmethod
+    def validate_group_name_no_html(cls, v: str) -> str:
+        """Prevent HTML injection in group names."""
+        if v:
+            return _validate_no_html(v, "Group name")
+        return v
 
 class MonitorStatusUpdate(BaseModel):
     status: str = Field(..., pattern=r"^(active|paused)$")
@@ -129,6 +184,12 @@ class AlertChannelCreate(BaseModel):
     channel_type: str = Field(..., pattern=r"^(webhook|slack|pagerduty|ts_automation)$")
     config: dict = Field(default_factory=dict)
     external_id: str | None = None
+    
+    @field_validator('name')
+    @classmethod
+    def validate_name_no_html(cls, v: str) -> str:
+        """Prevent HTML injection in alert channel names."""
+        return _validate_no_html(v, "Alert channel name")
 
 class StatusPageCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
@@ -136,6 +197,12 @@ class StatusPageCreate(BaseModel):
     theme: dict | None = None
     monitor_ids: list[str] | None = None
     external_id: str | None = None
+    
+    @field_validator('name')
+    @classmethod
+    def validate_name_no_html(cls, v: str) -> str:
+        """Prevent HTML injection in status page names."""
+        return _validate_no_html(v, "Status page name")
 
 class TokenRequest(BaseModel):
     api_key: str
@@ -234,8 +301,10 @@ def create_app() -> FastAPI:
         tenants_list = list_tenants()
         tenant_rows = ""
         for t in tenants_list:
+            # HTML-escape tenant name to prevent XSS
+            safe_name = html.escape(t['name'])
             tenant_rows += f"""<tr>
-                <td>{t['name']}</td><td><code>{t['slug']}</code></td>
+                <td>{safe_name}</td><td><code>{t['slug']}</code></td>
                 <td><code style="font-size:0.8em">{t['api_key']}</code></td>
                 <td><code style="font-size:0.8em">{t['id']}</code></td>
             </tr>"""
@@ -306,7 +375,21 @@ def create_app() -> FastAPI:
 
     # ── Tenants ──────────────────────────────────────────────────────────
     @app.post("/api/v1/tenants/", status_code=201, tags=["tenants"])
-    async def create_tenant_ep(body: TenantCreate):
+    async def create_tenant_ep(body: TenantCreate, tenant=Depends(get_current_tenant_optional)):
+        """Create a new tenant.
+        
+        Authentication is required unless this is the first tenant (bootstrap scenario).
+        This prevents unauthenticated attackers from creating tenants with malicious names.
+        """
+        existing_tenants = list_tenants()
+        
+        # Require authentication if any tenants already exist
+        if existing_tenants and tenant is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required to create additional tenants"
+            )
+        
         return create_tenant(name=body.name, slug=body.slug)
 
     @app.get("/api/v1/tenants/", tags=["tenants"])
