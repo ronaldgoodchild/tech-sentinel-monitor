@@ -137,10 +137,12 @@ def main():
         print(f"  Size  : {size_mb:.1f} MB")
         print(f"\n  DEPLOY — copy TechSentinelAgent.exe to target PC, then:")
         print(f"\n    (Run Command Prompt as Administrator)")
-        print(f"    TechSentinelAgent.exe --api-url http://192.168.1.121:8000 \\")
+        print(f"    TechSentinelAgent.exe --api-url https://192.168.1.121:8000 \\")
         print(f"                          --api-key YOUR_API_KEY --install")
         print(f"\n    TechSentinelAgent.exe --status     <- check it's running")
         print(f"\n  No Python needed on the target PC.")
+        print(f"\n  SECURITY: The control plane must be configured with TLS certificates.")
+        print(f"            Agents require HTTPS to protect API keys and command traffic.")
         print("=" * 60)
     else:
         print("\n" + "=" * 60)

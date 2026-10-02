@@ -13,7 +13,7 @@ Optional (for richer data):
     pip install psutil
 
 Usage:
-    python3 linux_system_agent.py --api-url http://192.168.1.121:8000 --api-key YOUR_KEY
+    python3 linux_system_agent.py --api-url https://192.168.1.121:8000 --api-key YOUR_KEY
     python3 linux_system_agent.py --print          # Just show system info
     python3 linux_system_agent.py --once            # Send once and exit
 
@@ -729,6 +729,15 @@ def get_or_create_monitor(api_url: str, api_key: str, hostname: str) -> str | No
     """Register this agent as a heartbeat monitor, return monitor_id."""
     if not HAS_REQUESTS:
         print("ERROR: 'requests' package required. Install: pip3 install requests")
+        return None
+
+    # SECURITY: Validate URL scheme to prevent plaintext transmission of API keys
+    if not api_url.startswith("https://"):
+        print("ERROR: API URL must use HTTPS to protect tenant API keys in transit.")
+        print(f"       Provided URL: {api_url}")
+        print("       The control plane must be configured with TLS certificates.")
+        print("       Using HTTP exposes your tenant API key to network eavesdropping")
+        print("       and allows attackers to inject malicious commands.")
         return None
 
     headers = {"X-TS-API-Key": api_key}

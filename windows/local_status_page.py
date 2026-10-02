@@ -506,7 +506,8 @@ def create_status_app() -> FastAPI:
 <script>
 // ── WebSocket Real-Time Updates ──
 (function(){{
-  var wsUrl = 'ws://' + location.hostname + ':8000/ws/status';
+  var wsScheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  var wsUrl = wsScheme + location.hostname + ':8000/ws/status';
   var ws = null;
   var reconnectDelay = 1000;
   var maxReconnect = 30000;
@@ -1314,7 +1315,8 @@ document.querySelectorAll('.ts').forEach(function(el){{
   }}catch(e){{}}
 }});
 
-var apiBase = 'http://' + location.hostname + ':8000';
+var apiScheme = location.protocol === 'https:' ? 'https://' : 'http://';
+var apiBase = apiScheme + location.hostname + ':8000';
 var monitorId = '{monitor_id}';
 var pollTimer = null;
 var _apiKey = null;
@@ -1607,7 +1609,8 @@ function loadMsgHistory(){{
 
 // ── WebSocket Real-Time Updates ──
 (function(){{
-  var wsUrl = 'ws://' + location.hostname + ':8000/ws/status';
+  var wsScheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  var wsUrl = wsScheme + location.hostname + ':8000/ws/status';
   var ws = null;
   var reconnectDelay = 1000;
   var statusEl = document.getElementById('ws-status');
@@ -1933,7 +1936,8 @@ document.querySelectorAll('.ts').forEach(function(el){{
   <footer>{branding['footer_html']}</footer>
 </div>
 <script>
-var apiBase = 'http://' + location.hostname + ':8000';
+var apiScheme = location.protocol === 'https:' ? 'https://' : 'http://';
+var apiBase = apiScheme + location.hostname + ':8000';
 document.querySelectorAll('.ts').forEach(function(el){{
   var raw = el.textContent.trim();
   if(!raw) return;
