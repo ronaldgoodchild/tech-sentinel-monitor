@@ -22,10 +22,10 @@ services:
   # ── Redis ───────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme_redis_password}
+    # No host port binding — Redis is only accessible within Docker network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-changeme_redis_password}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10

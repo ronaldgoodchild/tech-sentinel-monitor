@@ -6,7 +6,7 @@ import logging
 import redis.asyncio as aioredis
 
 from worker.config import worker_settings
-from worker.persistence import close_pool, write_check_result
+from worker.persistence import close_pool, validate_monitor_exists, write_check_result
 from worker.probes import PROBE_REGISTRY
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -40,11 +40,21 @@ async def _reschedule_job(job_data: dict, redis_client: aioredis.Redis, interval
 async def process_job(job_data: dict, redis_client: aioredis.Redis):
     """Execute a single probe job, write results, and schedule the next run."""
     monitor_id = job_data.get("monitor_id", "")
+    tenant_id = job_data.get("tenant_id", "")
     monitor_type = job_data.get("monitor_type", "")
     target = job_data.get("target", "")
     timeout = int(job_data.get("timeout_seconds", "10"))
     interval = int(job_data.get("interval_seconds", "60"))
     config = job_data.get("config", "{}")
+
+    # SECURITY: Validate that the monitor exists in the database and is active
+    # This prevents processing of forged or injected jobs from unauthorized sources
+    if not await validate_monitor_exists(monitor_id, tenant_id):
+        logger.warning(
+            f"Rejecting job for non-existent or inactive monitor: {monitor_id} "
+            f"(tenant={tenant_id}, type={monitor_type}, target={target})"
+        )
+        return
 
     probe_fn = PROBE_REGISTRY.get(monitor_type)
     if not probe_fn:
