@@ -56,6 +56,48 @@ def _check_ssl_expiry(target: str) -> str | None:
     return None
 
 
+def _validate_http_target(target: str, method: str) -> str:
+    """Validate and sanitize HTTP probe target to prevent SSRF.
+    
+    Returns the validated target URL.
+    Raises ValueError if validation fails.
+    """
+    from urllib.parse import urlparse
+    
+    try:
+        # Parse the URL
+        parsed = urlparse(target)
+        
+        # Validate protocol (http/https only)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("Invalid URL")
+        
+        # Validate domain against allowlist
+        allowed_domains = ['example.com']  # add your allowed domains here
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid URL")
+        
+        # Check if hostname matches any allowed domain (exact match only)
+        domain_allowed = False
+        for allowed in allowed_domains:
+            if hostname == allowed:
+                domain_allowed = True
+                break
+        
+        if not domain_allowed:
+            raise ValueError("Invalid URL")
+        
+        # Validate HTTP method (read-only operations only)
+        allowed_methods = ["GET", "HEAD", "OPTIONS"]
+        if method.upper() not in allowed_methods:
+            raise ValueError("Invalid URL")
+        
+        return target
+    except Exception:
+        raise ValueError("Invalid URL")
+
+
 def run_http_probe(target: str, timeout: int, config_str: str = "{}") -> dict:
     import httpx
     config = json.loads(config_str) if isinstance(config_str, str) else config_str
@@ -63,10 +105,17 @@ def run_http_probe(target: str, timeout: int, config_str: str = "{}") -> dict:
     expected_status = config.get("expected_status", 200)
     body_contains = config.get("body_contains", None)
 
+    # Validate target and method to prevent SSRF
+    try:
+        validated_target = _validate_http_target(target, method)
+    except ValueError as e:
+        return {"status": "down", "response_time_ms": 0,
+                "status_code": None, "error": str(e)}
+
     start = time.monotonic()
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True, verify=False) as client:
-            resp = client.request(method, target)
+            resp = client.request(method, validated_target)
             elapsed_ms = (time.monotonic() - start) * 1000
 
             if resp.status_code != expected_status:
@@ -80,7 +129,7 @@ def run_http_probe(target: str, timeout: int, config_str: str = "{}") -> dict:
                         "error": f"Body does not contain '{body_contains}'"}
 
             # Check SSL certificate expiry in background
-            ssl_expiry = _check_ssl_expiry(target)
+            ssl_expiry = _check_ssl_expiry(validated_target)
 
             result = {"status": "up", "response_time_ms": elapsed_ms,
                       "status_code": resp.status_code, "error": None}
