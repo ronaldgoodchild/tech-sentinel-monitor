@@ -149,7 +149,7 @@ class RemoteCommandCreate(BaseModel):
 class RemoteCommandResult(BaseModel):
     output: str = ""
     exit_code: int = 0
-    status: str = "completed"
+    status: str = Field(default="completed", pattern=r"^(completed|failed)$")
 
 class AgentMessageCreate(BaseModel):
     message: str = Field(..., min_length=1, max_length=1000)
@@ -522,37 +522,60 @@ def create_app() -> FastAPI:
         return create_remote_command(monitor_id, body.command)
 
     @app.get("/api/v1/monitors/{monitor_id}/commands", tags=["remote-commands"])
-    async def list_commands_ep(monitor_id: str, limit: int = 50):
+    async def list_commands_ep(monitor_id: str, limit: int = 50, tenant=Depends(get_current_tenant)):
         m = get_monitor(monitor_id)
-        if not m:
+        if not m or m["tenant_id"] != tenant["id"]:
             raise HTTPException(404, "Monitor not found")
         return get_command_history(monitor_id, limit=min(limit, 200))
 
     @app.get("/api/v1/monitors/{monitor_id}/commands/pending", tags=["remote-commands"])
-    async def pending_commands_ep(monitor_id: str):
+    async def pending_commands_ep(monitor_id: str, tenant=Depends(get_current_tenant)):
         """Agent polls this endpoint to get pending commands."""
         m = get_monitor(monitor_id)
-        if not m:
+        if not m or m["tenant_id"] != tenant["id"]:
             raise HTTPException(404, "Monitor not found")
         return get_pending_commands(monitor_id)
 
     @app.post("/api/v1/commands/{cmd_id}/start", tags=["remote-commands"])
-    async def start_command_ep(cmd_id: str):
+    async def start_command_ep(cmd_id: str, tenant=Depends(get_current_tenant)):
         """Agent marks a command as started."""
         cmd = get_command(cmd_id)
         if not cmd:
             raise HTTPException(404, "Command not found")
-        mark_command_started(cmd_id)
+        # Verify the command belongs to a monitor owned by this tenant
+        m = get_monitor(cmd["monitor_id"])
+        if not m or m["tenant_id"] != tenant["id"]:
+            raise HTTPException(404, "Command not found")
+        # Verify the command is in pending state before marking as started
+        if cmd["status"] != "pending":
+            raise HTTPException(400, f"Command cannot be started from status '{cmd['status']}'")
+        try:
+            mark_command_started(cmd_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         return {"status": "ok"}
 
     @app.post("/api/v1/commands/{cmd_id}/result", tags=["remote-commands"])
-    async def command_result_ep(cmd_id: str, body: RemoteCommandResult):
+    async def command_result_ep(cmd_id: str, body: RemoteCommandResult, tenant=Depends(get_current_tenant)):
         """Agent reports command execution result."""
         cmd = get_command(cmd_id)
         if not cmd:
             raise HTTPException(404, "Command not found")
-        update_command_result(cmd_id, output=body.output,
-                             exit_code=body.exit_code, status=body.status)
+        # Verify the command belongs to a monitor owned by this tenant
+        m = get_monitor(cmd["monitor_id"])
+        if not m or m["tenant_id"] != tenant["id"]:
+            raise HTTPException(404, "Command not found")
+        # Restrict status to valid terminal states only
+        if body.status not in ("completed", "failed"):
+            raise HTTPException(400, f"Invalid status '{body.status}'. Only 'completed' or 'failed' are allowed.")
+        # Verify the command is in running state before accepting result
+        if cmd["status"] not in ("pending", "running"):
+            raise HTTPException(400, f"Command result cannot be reported from status '{cmd['status']}'")
+        try:
+            update_command_result(cmd_id, output=body.output,
+                                 exit_code=body.exit_code, status=body.status)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         return {"status": "ok"}
 
     # ── Wake-on-LAN ────────────────────────────────────────────────────
