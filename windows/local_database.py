@@ -736,26 +736,48 @@ def get_pending_commands(monitor_id: str) -> list[dict]:
 
 
 def update_command_result(cmd_id: str, output: str, exit_code: int, status: str = "completed"):
-    """Agent reports back the result of a command."""
+    """Agent reports back the result of a command.
+    
+    Only allows terminal states (completed, failed) and only from pending or running states.
+    This prevents command resurrection attacks.
+    """
     conn = _get_conn()
     now = _now()
-    conn.execute(
+    # Enforce state transition: only update if current status is pending or running
+    # and new status is a terminal state (completed or failed)
+    if status not in ("completed", "failed"):
+        raise ValueError(f"Invalid status '{status}'. Only 'completed' or 'failed' are allowed.")
+    
+    cursor = conn.execute(
         """UPDATE remote_commands
            SET status=?, output=?, exit_code=?, completed_at=?
-           WHERE id=?""",
+           WHERE id=? AND status IN ('pending', 'running')""",
         (status, output, exit_code, now, cmd_id),
     )
     conn.commit()
+    
+    if cursor.rowcount == 0:
+        # Command either doesn't exist or is not in a valid state for this transition
+        raise ValueError(f"Command {cmd_id} cannot transition to '{status}' from its current state")
 
 
 def mark_command_started(cmd_id: str):
-    """Mark a command as started by the agent."""
+    """Mark a command as started by the agent.
+    
+    Only allows transition from pending to running state.
+    This prevents replaying already-started commands.
+    """
     conn = _get_conn()
-    conn.execute(
-        "UPDATE remote_commands SET status='running', started_at=? WHERE id=?",
+    # Enforce state transition: only update if current status is pending
+    cursor = conn.execute(
+        "UPDATE remote_commands SET status='running', started_at=? WHERE id=? AND status='pending'",
         (_now(), cmd_id),
     )
     conn.commit()
+    
+    if cursor.rowcount == 0:
+        # Command either doesn't exist or is not in pending state
+        raise ValueError(f"Command {cmd_id} is not in pending state and cannot be started")
 
 
 def get_command_history(monitor_id: str, limit: int = 50) -> list[dict]:
