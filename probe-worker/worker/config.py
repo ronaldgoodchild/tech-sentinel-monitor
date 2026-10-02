@@ -8,10 +8,11 @@ class WorkerSettings(BaseSettings):
     postgres_port: int = 5432
     postgres_db: str = "techsentinel"
     postgres_user: str = "tsadmin"
-    postgres_password: str = "changeme_db_password"
+    postgres_password: str
 
     redis_host: str = "redis"
     redis_port: int = 6379
+    redis_password: str
 
     ts_probe_concurrency: int = 10
     ts_probe_interval_seconds: int = 60
@@ -26,7 +27,10 @@ class WorkerSettings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
-        return f"redis://{self.redis_host}:{self.redis_port}"
+        from urllib.parse import quote_plus
+
+        password = quote_plus(self.redis_password)
+        return f"redis://:{password}@{self.redis_host}:{self.redis_port}"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
