@@ -48,6 +48,8 @@ class BrandingConfig:
         return cfg
 
     def save(self, path: str):
+        if ".." in path:
+            raise Exception("Invalid file path")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
 
@@ -56,6 +58,8 @@ class BrandingConfig:
         if not os.path.exists(path):
             return cls()
         try:
+            if ".." in path:
+                raise Exception("Invalid file path")
             with open(path, "r", encoding="utf-8") as f:
                 return cls.from_dict(json.load(f))
         except Exception as e:
