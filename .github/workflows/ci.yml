@@ -69,6 +69,8 @@ jobs:
       - name: Start services
         run: |
           cp .env.example .env
+          # Override insecure JWT secret with a secure one for testing
+          echo "TS_JWT_SECRET=integration-test-jwt-secret-minimum-32-bytes-long" >> .env
           docker compose up -d --build
           # Wait for both services instead of guessing with a fixed sleep (a busy runner can be slow)
           for i in $(seq 1 60); do

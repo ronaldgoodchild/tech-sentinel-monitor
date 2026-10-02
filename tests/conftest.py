@@ -6,6 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+# Set secure JWT secret for tests before importing any app modules
+# This prevents the application from failing startup validation during tests
+os.environ.setdefault("TS_JWT_SECRET", "test-jwt-secret-minimum-32-bytes-long-for-security")
+
 # Ensure project root is in path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "control-plane"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "probe-worker"))
