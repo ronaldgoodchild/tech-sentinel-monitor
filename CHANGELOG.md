@@ -3,6 +3,7 @@
 Reconstructed from the original development history (April 2026).
 
 ## [Unreleased]
+- Security: Windows standalone API and status page now listen on 127.0.0.1 (this PC only) by default instead of every interface. The launcher's "Server IP" setting is honoured (it was ignored before); set it to 0.0.0.0 to accept other PCs and agents on a trusted network
 - CI: integration test now waits for the API and status page to be healthy (up to 3 minutes) instead of a fixed 15-second sleep, which made it flaky on busy runners
 - Fix: demo layout's Backup Agent monitor used `timeout_seconds: 600` (API maximum is 120), which made the CI integration test fail
 - Security: Windows standalone edition no longer ships a hard-coded JWT signing secret; it uses TS_JWT_SECRET or a random per-install secret generated on first run

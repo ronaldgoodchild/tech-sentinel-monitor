@@ -24,6 +24,8 @@ from tkinter import ttk, messagebox, scrolledtext
 import webbrowser
 from datetime import datetime, timezone
 
+from windows.bind_host import ALL_INTERFACES, LOCAL_ONLY, resolve_bind_host
+
 # ── Logging Setup ────────────────────────────────────────────────────────────
 
 LOG_BUFFER = []
@@ -400,7 +402,7 @@ class TechSentinelLauncher:
                   style="Card.TLabel", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=15, pady=(10, 10))
 
         fields = [
-            ("Server IP:", "0.0.0.0"),
+            ("Server IP:", "127.0.0.1"),
             ("API Port:", "8000"),
             ("Status Page Port:", "8001"),
             ("Probe Concurrency:", "5"),
@@ -420,6 +422,11 @@ class TechSentinelLauncher:
                              font=("Segoe UI", 10), relief="flat")
             entry.pack(side="left", padx=(5, 0))
             self.settings_vars[label_text] = var
+
+        ttk.Label(settings_card,
+                  text="Server IP: 127.0.0.1 = this PC only (default). Use 0.0.0.0 to let other PCs and "
+                       "agents connect; only do that on a trusted network.",
+                  style="CardDim.TLabel", wraplength=520, justify="left").pack(anchor="w", padx=15, pady=(4, 0))
 
         # DB Info
         db_frame = ttk.Frame(settings_card, style="Card.TFrame")
@@ -605,11 +612,17 @@ class TechSentinelLauncher:
 
     # ── URL Helpers ───────────────────────────────────────────────────────
 
+    def _bind_host(self) -> str:
+        """Address the servers listen on (Server IP setting; default this PC only)."""
+        return resolve_bind_host(self.settings_vars.get("Server IP:", tk.StringVar(value=LOCAL_ONLY)).get())
+
     def _get_browse_ip(self):
         """Get the IP/hostname for browser URLs. Uses Server IP setting,
-        but substitutes localhost if set to 0.0.0.0 (bind-all)."""
-        ip = self.settings_vars.get("Server IP:", tk.StringVar(value="0.0.0.0")).get().strip()
-        if not ip or ip == "0.0.0.0":
+        but substitutes localhost for 127.0.0.1 and this PC's LAN address for 0.0.0.0 (bind-all)."""
+        ip = resolve_bind_host(self.settings_vars.get("Server IP:", tk.StringVar(value=LOCAL_ONLY)).get())
+        if ip == LOCAL_ONLY:
+            return "localhost"
+        if ip == ALL_INTERFACES:
             import socket
             try:
                 # Get local IP by connecting to a known address
@@ -715,7 +728,7 @@ class TechSentinelLauncher:
         from windows.local_api import create_app
 
         app = create_app()
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
+        config = uvicorn.Config(app, host=self._bind_host(), port=port,
                                 log_level="warning", log_config=None)
         self.uvicorn_server = uvicorn.Server(config)
 
@@ -733,7 +746,7 @@ class TechSentinelLauncher:
         from windows.local_status_page import create_status_app
         app = create_status_app()
 
-        config = uvicorn.Config(app, host="0.0.0.0", port=port,
+        config = uvicorn.Config(app, host=self._bind_host(), port=port,
                                 log_level="warning", log_config=None)
         self.status_server = uvicorn.Server(config)
 
