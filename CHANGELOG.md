@@ -3,6 +3,7 @@
 Reconstructed from the original development history (April 2026).
 
 ## [Unreleased]
+- 2.0.1 (Windows EXE): removed the hidden PowerShell toast fallback (a string-built `powershell -WindowStyle Hidden` script - a command-injection risk and a pattern antivirus engines flag; the 2.0.0 EXE was quarantined by Windows Defender as a false positive). Toasts now need the optional `winotify` package; otherwise the app logs and beeps. The EXE also carries proper Windows version info (publisher, product, version).
 - Windows standalone EXE is now published on the Releases page (with SHA-256). Fixed `windows/build_exe.py` on Windows (`--add-data` used `:` instead of the OS path separator). Removed generated PyInstaller `.spec` files that contained local paths.
 - Dependencies: redis-py 8.1 (control plane and probe worker). Verified against a real Redis 7 server: job publish, consumer-group create (incl. already-exists), read, ack and connection-error handling. Control plane now closes its Redis client with `aclose()` (`close()` is deprecated).
 - Security: Windows standalone API and status page now listen on 127.0.0.1 (this PC only) by default instead of every interface. The launcher's "Server IP" setting is honoured (it was ignored before); set it to 0.0.0.0 to accept other PCs and agents on a trusted network

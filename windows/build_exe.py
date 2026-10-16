@@ -69,6 +69,7 @@ main()
         "--onefile",
         "--windowed",
         "--name", "TechSentinelMonitor",
+        "--version-file", os.path.join(script_dir, "version_info.txt"),
         "--icon", "NONE",
         # Hidden imports that PyInstaller might miss
         "--hidden-import", "uvicorn.logging",
