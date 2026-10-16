@@ -735,8 +735,13 @@ def get_or_create_monitor(api_url: str, api_key: str, hostname: str) -> str | No
     external_id = f"sys-agent-linux-{hostname}"
 
     try:
-        resp = requests.get(f"{api_url}/api/v1/tenants/", headers=headers, timeout=10)
-        tenants = resp.json() if resp.status_code == 200 else []
+        resp = requests.get(f"{api_url}/api/v1/tenants/me", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            tenants = [resp.json()]
+        else:
+            # Older servers (e.g. the Windows standalone API) only expose the list
+            resp = requests.get(f"{api_url}/api/v1/tenants/", headers=headers, timeout=10)
+            tenants = resp.json() if resp.status_code == 200 else []
     except Exception as e:
         print(f"ERROR: Cannot reach API at {api_url}: {e}")
         return None

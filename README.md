@@ -91,10 +91,11 @@ curl http://localhost:8000/api/v1/monitors/ \
 ### Tenants
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/tenants/` | Create tenant |
-| `GET` | `/api/v1/tenants/` | List tenants |
-| `GET` | `/api/v1/tenants/{id}` | Get tenant |
-| `DELETE` | `/api/v1/tenants/{id}` | Delete tenant |
+| `POST` | `/api/v1/tenants/` | Create tenant (admin key) |
+| `GET` | `/api/v1/tenants/` | List tenants (admin key) |
+| `GET` | `/api/v1/tenants/me` | Your own tenant (tenant API key) |
+| `GET` | `/api/v1/tenants/{id}` | Get tenant (public fields, no API key) |
+| `DELETE` | `/api/v1/tenants/{id}` | Delete tenant (admin key) |
 
 ### Monitors
 | Method | Endpoint | Description |
@@ -170,7 +171,7 @@ ts-provisioner status
 | `POSTGRES_PORT` | TimescaleDB port | `5432` |
 | `POSTGRES_DB` | Database name | `techsentinel` |
 | `REDIS_HOST` | Redis host | `redis` |
-| `TS_API_KEY` | Global API key | — |
+| `TS_API_KEY` | Admin key for tenant management (sent as `X-TS-Admin-Key`); tenant endpoints are disabled until set | — |
 | `TS_JWT_SECRET` | JWT signing secret | — |
 | `TS_ALERT_CONSECUTIVE_FAILURES` | Failure threshold | `3` |
 | `TS_PROBE_CONCURRENCY` | Max concurrent probes | `10` |

@@ -6,7 +6,7 @@
 |--------|---------|------------|
 | `TS_JWT_SECRET` | JWT token signing | Control Plane API |
 | `POSTGRES_PASSWORD` | Database auth | All services |
-| `TS_API_KEY` | Global admin API key | Control Plane API |
+| `TS_API_KEY` | Admin key for tenant management (`X-TS-Admin-Key`); leave empty to disable | Control Plane API, provisioner, demo |
 | `TS_SLACK_WEBHOOK_URL` | Default Slack notifications | Alert Engine |
 | `TS_PAGERDUTY_ROUTING_KEY` | Default PagerDuty routing | Alert Engine |
 | `TS_AUTOMATION_URL` | Tech Sentinel remediation endpoint | Alert Engine |

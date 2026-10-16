@@ -69,6 +69,10 @@ jobs:
       - name: Start services
         run: |
           cp .env.example .env
+          # tenant management needs an admin key; generate one for this run
+          TS_API_KEY="$(openssl rand -hex 16)"
+          sed -i "s/^TS_API_KEY=.*/TS_API_KEY=${TS_API_KEY}/" .env
+          echo "TS_API_KEY=${TS_API_KEY}" >> "$GITHUB_ENV"
           docker compose up -d --build
           # Wait for both services instead of guessing with a fixed sleep (a busy runner can be slow)
           for i in $(seq 1 60); do
