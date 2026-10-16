@@ -3,6 +3,7 @@
 Reconstructed from the original development history (April 2026).
 
 ## [Unreleased]
+- Security: tenant endpoints are no longer open. Creating, listing and deleting tenants needs the admin key (`X-TS-Admin-Key` = `TS_API_KEY`, no default; endpoints are disabled until it is set); `GET /api/v1/tenants/{id}` no longer returns API keys; new `GET /api/v1/tenants/me` for a tenant to read its own record. The provisioner takes `--admin-key` / `TS_API_KEY`; agents use `/tenants/me`. **Breaking for server deployments: set TS_API_KEY.**
 - CI: integration test now waits for the API and status page to be healthy (up to 3 minutes) instead of a fixed 15-second sleep, which made it flaky on busy runners
 - Fix: demo layout's Backup Agent monitor used `timeout_seconds: 600` (API maximum is 120), which made the CI integration test fail
 - Security: Windows standalone edition no longer ships a hard-coded JWT signing secret; it uses TS_JWT_SECRET or a random per-install secret generated on first run

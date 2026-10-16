@@ -11,6 +11,15 @@ class TenantCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-z0-9\-]+$")
 
 
+class TenantPublic(BaseModel):
+    """Tenant details that are safe to show without credentials (no API key)."""
+    id: str
+    name: str
+    slug: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class TenantResponse(BaseModel):
     id: str
     name: str

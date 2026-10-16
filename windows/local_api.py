@@ -313,6 +313,10 @@ def create_app() -> FastAPI:
     async def list_tenants_ep():
         return list_tenants()
 
+    @app.get("/api/v1/tenants/me", tags=["tenants"])
+    async def get_own_tenant_ep(tenant=Depends(get_current_tenant)):
+        return tenant
+
     @app.get("/api/v1/tenants/{tenant_id}", tags=["tenants"])
     async def get_tenant_ep(tenant_id: str):
         t = get_tenant(tenant_id)

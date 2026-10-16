@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     # API
     ts_api_host: str = "0.0.0.0"
     ts_api_port: int = 8000
-    ts_api_key: str = "changeme_api_key"
+    # Admin key for tenant management (X-TS-Admin-Key). Empty = tenant admin endpoints disabled.
+    ts_api_key: str = ""
     ts_jwt_secret: str = "changeme_jwt_secret"
     ts_jwt_algorithm: str = "HS256"
     ts_jwt_expire_minutes: int = 60
