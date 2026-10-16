@@ -12,6 +12,12 @@ A self-hostable monitoring system that provides HTTP, TCP, ping, and heartbeat p
 ![Windows standalone edition: services running with the demo layout loaded](docs/screenshots/windows-app.png)
 *Windows standalone edition: services running with the demo layout loaded*
 
+## Download (Windows standalone)
+
+Grab **TechSentinelMonitor-2.0.0-win64.exe** from the [latest release](https://github.com/ronaldgoodchild/tech-sentinel-monitor/releases/latest) - no Python or Docker needed. It listens on this PC only by default (change *Server IP* in Settings to let other PCs and agents connect).
+
+The EXE is unsigned, so Windows SmartScreen or your antivirus may warn about it. Verify the download against the `.sha256` file on the release (`certutil -hashfile <file> SHA256`), or build it yourself with `python windows/build_exe.py`.
+
 ## Two ways to run it
 
 | Edition | What it is | Start here |
