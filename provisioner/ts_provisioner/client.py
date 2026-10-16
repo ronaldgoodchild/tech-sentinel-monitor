@@ -6,11 +6,14 @@ import httpx
 class TSClient:
     """Synchronous HTTP client for the Control Plane API."""
 
-    def __init__(self, base_url: str, api_key: str | None = None):
+    def __init__(self, base_url: str, api_key: str | None = None, admin_key: str | None = None):
         self.base_url = base_url.rstrip("/")
         self.headers = {}
         if api_key:
             self.headers["X-TS-API-Key"] = api_key
+        if admin_key:
+            # Needed to create/list tenants (matches TS_API_KEY on the control plane)
+            self.headers["X-TS-Admin-Key"] = admin_key
         self._client = httpx.Client(base_url=self.base_url, headers=self.headers, timeout=30)
 
     def close(self):
