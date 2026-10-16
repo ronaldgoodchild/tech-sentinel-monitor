@@ -43,3 +43,6 @@ logs/
 *.exe
 *.spec.bak
 .ruff_cache/
+
+# PyInstaller specs are generated (and embed local paths)
+*.spec

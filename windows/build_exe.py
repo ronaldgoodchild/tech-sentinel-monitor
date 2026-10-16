@@ -99,8 +99,8 @@ main()
         "--hidden-import", "windows.noc_importer",
         "--hidden-import", "windows.launcher",
         # Add data files
-        "--add-data", f"{os.path.join('windows')}:windows",
-        "--add-data", f"{demo_src}:demo",
+        "--add-data", f"windows{os.pathsep}windows",
+        "--add-data", f"{demo_src}{os.pathsep}demo",
         # Overwrite without prompting
         "--noconfirm",
         entry_point,
