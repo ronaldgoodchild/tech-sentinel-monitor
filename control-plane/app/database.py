@@ -42,5 +42,5 @@ async def close_connections():
         await _pool.close()
         _pool = None
     if _redis:
-        await _redis.close()
+        await _redis.aclose()
         _redis = None
