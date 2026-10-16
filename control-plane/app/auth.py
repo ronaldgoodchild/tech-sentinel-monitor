@@ -1,5 +1,6 @@
 """Dual authentication: X-TS-API-Key header OR JWT Bearer token."""
 
+import hmac
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Security, status
@@ -11,6 +12,7 @@ from app.models import get_tenant_by_api_key
 
 api_key_header = APIKeyHeader(name="X-TS-API-Key", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
+admin_key_header = APIKeyHeader(name="X-TS-Admin-Key", auto_error=False)
 
 
 def create_access_token(tenant_id: str) -> tuple[str, int]:
@@ -54,6 +56,24 @@ async def get_current_tenant(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid API key or token",
     )
+
+
+async def require_admin(admin_key: str | None = Security(admin_key_header)):
+    """Guard for tenant management: needs X-TS-Admin-Key matching TS_API_KEY.
+
+    Fails closed: if TS_API_KEY is not configured the endpoints are unavailable.
+    """
+    configured = settings.ts_api_key
+    if not configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Tenant administration is disabled: set TS_API_KEY on the control plane",
+        )
+    if not admin_key or not hmac.compare_digest(admin_key.encode(), configured.encode()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing X-TS-Admin-Key",
+        )
 
 
 async def get_optional_tenant(

@@ -25,6 +25,8 @@ import httpx
 API_URL = os.getenv("TS_API_URL", sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].startswith("http") else "http://localhost:8000")
 DEMO_DIR = os.path.dirname(os.path.abspath(__file__))
 LAYOUT_FILE = os.path.join(DEMO_DIR, "ts-uptimerobot-layout.json")
+# Tenant management needs the control plane admin key (TS_API_KEY)
+ADMIN = {"X-TS-Admin-Key": os.getenv("TS_API_KEY", "")}
 
 # Token map for template substitution
 TOKEN_MAP = {
@@ -76,7 +78,7 @@ def main():
 
     # ── Step 2: Create Tenant ────────────────────────────────────────────
     step("Creating ACME Corporation tenant...")
-    resp = api("POST", "/api/v1/tenants/", json={"name": "ACME Corporation", "slug": "acme-corp"})
+    resp = api("POST", "/api/v1/tenants/", headers=ADMIN, json={"name": "ACME Corporation", "slug": "acme-corp"})
     if resp.status_code in (200, 201):
         tenant = resp.json()
         api_key = tenant["api_key"]
@@ -143,7 +145,7 @@ def main():
 
     # ── Step 6: Idempotency Validation ───────────────────────────────────
     step("Validating idempotency (re-provisioning should return same IDs)...")
-    resp2 = api("POST", "/api/v1/tenants/", json={"name": "ACME Corporation", "slug": "acme-corp"})
+    resp2 = api("POST", "/api/v1/tenants/", headers=ADMIN, json={"name": "ACME Corporation", "slug": "acme-corp"})
     if resp2.status_code in (200, 201):
         tenant2 = resp2.json()
         if tenant2["id"] == tenant_id:

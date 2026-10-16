@@ -11,11 +11,13 @@ from ts_provisioner.layout_parser import load_layout, validate_layout
 
 @click.group()
 @click.option("--api-url", envvar="TS_API_URL", default="http://localhost:8000", help="Control Plane API URL")
+@click.option("--admin-key", envvar="TS_API_KEY", default=None, help="Control Plane admin key (TS_API_KEY) for tenant management")
 @click.pass_context
-def cli(ctx, api_url):
+def cli(ctx, api_url, admin_key):
     """Tech Sentinel Monitor — Provisioner CLI"""
     ctx.ensure_object(dict)
     ctx.obj["api_url"] = api_url
+    ctx.obj["admin_key"] = admin_key
 
 
 @cli.command()
@@ -50,7 +52,7 @@ def provision(ctx, layout_file, token, dry_run):
         return
 
     # Provision
-    client = TSClient(ctx.obj["api_url"])
+    client = TSClient(ctx.obj["api_url"], admin_key=ctx.obj.get("admin_key"))
 
     try:
         # 1. Create tenant
@@ -151,7 +153,7 @@ def validate(ctx, layout_file, token):
 @click.pass_context
 def status(ctx):
     """Check the Control Plane API health status."""
-    client = TSClient(ctx.obj["api_url"])
+    client = TSClient(ctx.obj["api_url"], admin_key=ctx.obj.get("admin_key"))
     try:
         health = client.health()
         click.echo(f"\u2705 Control Plane is healthy: {json.dumps(health)}")
