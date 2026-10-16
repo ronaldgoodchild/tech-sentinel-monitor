@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger("ts.version_control")
 
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 VERSION_HISTORY_FILE = "version_history.json"
 
 

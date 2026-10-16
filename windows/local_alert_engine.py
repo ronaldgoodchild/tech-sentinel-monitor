@@ -462,32 +462,15 @@ def _send_toast(title: str, message: str):
     except ImportError:
         pass
 
-    # Fallback: PowerShell toast (works on any Windows 10/11, no pip install)
-    import subprocess
-    ps_script = (
-        f'[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, '
-        f'ContentType = WindowsRuntime] > $null; '
-        f'$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(1); '
-        f'$text = $xml.GetElementsByTagName("text"); '
-        f'$text[0].AppendChild($xml.CreateTextNode("{title.replace(chr(34), "")}")) > $null; '
-        f'$text[1].AppendChild($xml.CreateTextNode("{message.replace(chr(34), "")}")) > $null; '
-        f'$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Tech Sentinel"); '
-        f'$notifier.Show([Windows.UI.Notifications.ToastNotification]::new($xml))'
-    )
+    # No PowerShell fallback: running a hidden, string-built PowerShell script is both a
+    # command-injection risk and a pattern antivirus engines flag. Toasts need the optional
+    # `winotify` package (pip install winotify); otherwise we log and beep.
+    logger.info("Toast skipped (winotify not installed): %s - %s", title, message)
     try:
-        subprocess.Popen(
-            ["powershell", "-WindowStyle", "Hidden", "-Command", ps_script],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            creationflags=0x08000000,  # CREATE_NO_WINDOW
-        )
-    except Exception as e:
-        # Last resort: winsound beep + log
-        logger.warning("Toast failed, beeping instead: %s", e)
-        try:
-            import winsound
-            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
-        except Exception:
-            pass
+        import winsound
+        winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+    except Exception:
+        pass
 
 
 def _send_webhook(event: str, monitor: dict, failures: int, error: str, timestamp: str):
