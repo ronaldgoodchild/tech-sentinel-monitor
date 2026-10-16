@@ -3,6 +3,7 @@
 Reconstructed from the original development history (April 2026).
 
 ## [Unreleased]
+- Dependencies: redis-py 8.1 (control plane and probe worker). Verified against a real Redis 7 server: job publish, consumer-group create (incl. already-exists), read, ack and connection-error handling. Control plane now closes its Redis client with `aclose()` (`close()` is deprecated).
 - Security: Windows standalone API and status page now listen on 127.0.0.1 (this PC only) by default instead of every interface. The launcher's "Server IP" setting is honoured (it was ignored before); set it to 0.0.0.0 to accept other PCs and agents on a trusted network
 - Security: Windows standalone status/manage pages now HTML-escape monitor, tenant, group, incident, audit and agent-reported data (server-rendered and client-side), fixing stored XSS; non-http(s) monitor targets are no longer rendered as links; regression tests added
 - Security: tenant endpoints are no longer open. Creating, listing and deleting tenants needs the admin key (`X-TS-Admin-Key` = `TS_API_KEY`, no default; endpoints are disabled until it is set); `GET /api/v1/tenants/{id}` no longer returns API keys; new `GET /api/v1/tenants/me` for a tenant to read its own record. The provisioner takes `--admin-key` / `TS_API_KEY`; agents use `/tenants/me`. **Breaking for server deployments: set TS_API_KEY.**
