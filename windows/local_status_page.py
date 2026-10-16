@@ -4,6 +4,7 @@ Standalone version that reads directly from SQLite instead of calling the API.
 Features: 3-across grid, clickable cards, edit/manage monitors.
 """
 
+import html
 import json
 import os
 from pathlib import Path
@@ -114,6 +115,11 @@ SHARED_CSS_TEMPLATE = """
 """
 
 
+def _e(value) -> str:
+    """HTML-escape any value (text and attribute contexts) before it goes into a page."""
+    return html.escape("" if value is None else str(value), quote=True)
+
+
 def _render_css(theme_vars: dict) -> str:
     """Render SHARED_CSS_TEMPLATE with theme variables using safe %%key%% replacement."""
     css = SHARED_CSS_TEMPLATE
@@ -125,7 +131,8 @@ def _render_css(theme_vars: dict) -> str:
 def _build_clickable_url(target: str, monitor_type: str) -> str:
     """Build a clickable URL from a monitor target."""
     if monitor_type == "http":
-        return target
+        # Only real web links; blocks javascript:, data: and similar schemes
+        return target if target.lower().startswith(("http://", "https://")) else ""
     elif monitor_type == "tcp":
         # For TCP, try to make a useful link
         if ":" in target:
@@ -248,10 +255,10 @@ def create_status_app() -> FastAPI:
         page_links = ""
         for p in pages:
             page_links += f"""
-            <a href="/status/{p['slug']}" class="page-card">
-                <div class="page-name">📊 {p['name']}</div>
-                <div class="page-tenant">{p['tenant_name']}</div>
-                <div class="page-url">/status/{p['slug']}</div>
+            <a href="/status/{_e(p['slug'])}" class="page-card">
+                <div class="page-name">📊 {_e(p['name'])}</div>
+                <div class="page-tenant">{_e(p['tenant_name'])}</div>
+                <div class="page-url">/status/{_e(p['slug'])}</div>
             </a>"""
 
         if not page_links:
@@ -397,7 +404,7 @@ def create_status_app() -> FastAPI:
                 dot_class = "dot-unknown"
                 status_text = "🔧 maintenance"
             else:
-                dot_class = f"dot-{s}"
+                dot_class = f"dot-{_e(s)}"
                 status_text = s
 
             # Build clickable URL for opening the actual service
@@ -405,22 +412,22 @@ def create_status_app() -> FastAPI:
             open_link = ""
             if click_url:
                 open_link = (
-                    f'<a href="{click_url}" target="_blank" class="open-link" '
-                    f'onclick="event.stopPropagation()" title="Open {m["target"]}">↗</a>'
+                    f'<a href="{_e(click_url)}" target="_blank" class="open-link" '
+                    f'onclick="event.stopPropagation()" title="Open {_e(m["target"])}">↗</a>'
                 )
 
             card_html = f"""
             <div class="monitor-card" data-monitor-id="{mid}" onclick="window.location='/monitor/{mid}'" role="link">
                 <div class="monitor-top">
                     <div>
-                        <div class="monitor-name">{icon} {m['name']} {ssl_badge}</div>
-                        <div class="monitor-meta">{m['monitor_type'].upper()} {uptime_badge}</div>
+                        <div class="monitor-name">{icon} {_e(m['name'])} {ssl_badge}</div>
+                        <div class="monitor-meta">{_e(m['monitor_type'].upper())} {uptime_badge}</div>
                     </div>
                     <div class="status-badge">
                         <span class="status-dot {dot_class}"></span> <span class="status-text">{status_text}</span>
                     </div>
                 </div>
-                <div class="monitor-target" title="{m['target']}">{m['target']} {open_link}</div>
+                <div class="monitor-target" title="{_e(m['target'])}">{_e(m['target'])} {open_link}</div>
                 <div class="monitor-bottom">
                     <span class="response-time">{resp_text}</span>
                     {sparkline}
@@ -459,7 +466,7 @@ def create_status_app() -> FastAPI:
         return f"""<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{page['name']} — Status</title>
+<title>{_e(page['name'])} — Status</title>
 {favicon_tag}
 <style>{_render_css(css_vars)}
   .ws-indicator {{ display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:0.3rem;vertical-align:middle; }}
@@ -476,8 +483,8 @@ def create_status_app() -> FastAPI:
 <div class="container">
     <header>
         <h1>{branding['header_html']}</h1>
-        <p class="tenant" style="font-size:1.1rem;margin-top:0.3rem">{page['name']}</p>
-        <p class="tenant">{tenant_name}</p>
+        <p class="tenant" style="font-size:1.1rem;margin-top:0.3rem">{_e(page['name'])}</p>
+        <p class="tenant">{_e(tenant_name)}</p>
     </header>
     <div class="overall-status">
         <span class="badge badge-{overall_class}" id="overall-badge">{overall_text}</span>
@@ -632,23 +639,23 @@ def create_status_app() -> FastAPI:
         rows = ""
         for m in all_monitors:
             s = m["_status"]
-            dot_class = f"dot-{s}"
+            dot_class = f"dot-{_e(s)}"
             click_url = _build_clickable_url(m["target"], m["monitor_type"])
-            link = f'<a href="{click_url}" target="_blank">{m["target"]}</a>' if click_url else m["target"]
+            link = f'<a href="{_e(click_url)}" target="_blank">{_e(m["target"])}</a>' if click_url else m["target"]
             grp = m.get("group_name", "") or ""
-            grp_badge = f'<span style="background:#222636;padding:2px 8px;border-radius:10px;font-size:0.75rem;color:#8b8fa3">{grp}</span>' if grp else '<span style="color:#555;font-size:0.75rem">—</span>'
+            grp_badge = f'<span style="background:#222636;padding:2px 8px;border-radius:10px;font-size:0.75rem;color:#8b8fa3">{_e(grp)}</span>' if grp else '<span style="color:#555;font-size:0.75rem">—</span>'
 
             rows += f"""<tr>
-                <td><span class="status-dot {dot_class}" style="display:inline-block;vertical-align:middle"></span> {s}</td>
-                <td><strong>{m['name']}</strong></td>
-                <td><code>{m['monitor_type']}</code></td>
+                <td><span class="status-dot {dot_class}" style="display:inline-block;vertical-align:middle"></span> {_e(s)}</td>
+                <td><strong>{_e(m['name'])}</strong></td>
+                <td><code>{_e(m['monitor_type'])}</code></td>
                 <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{link}</td>
                 <td>{grp_badge}</td>
-                <td>{m['interval_seconds']}s</td>
+                <td>{_e(m['interval_seconds'])}s</td>
                 <td>
-                    <a href="/manage/edit/{m['id']}" class="btn" style="padding:0.3rem 0.6rem;font-size:0.8rem">✏️ Edit</a>
-                    <a href="/manage/delete/{m['id']}" class="btn btn-danger" style="padding:0.3rem 0.6rem;font-size:0.8rem"
-                       onclick="return confirm('Delete {m['name']}?')">🗑️</a>
+                    <a href="/manage/edit/{_e(m['id'])}" class="btn" style="padding:0.3rem 0.6rem;font-size:0.8rem">✏️ Edit</a>
+                    <a href="/manage/delete/{_e(m['id'])}" class="btn btn-danger" style="padding:0.3rem 0.6rem;font-size:0.8rem"
+                       onclick="return confirm('Delete this monitor?')">🗑️</a>
                 </td>
             </tr>"""
 
@@ -719,7 +726,7 @@ def create_status_app() -> FastAPI:
       </div>
     </form>
     <datalist id="group-list">
-      {"".join(f'<option value="{g}">' for g in sorted(set(m.get("group_name","") for m in all_monitors if m.get("group_name",""))))}
+      {"".join(f'<option value="{_e(g)}">' for g in sorted(set(m.get("group_name","") for m in all_monitors if m.get("group_name",""))))}
       <option value="🖥️ Agents">
       <option value="📦 NAS Servers">
       <option value="🌐 Web Services">
@@ -786,11 +793,11 @@ def create_status_app() -> FastAPI:
         status_options = ""
         for s in ["active", "paused"]:
             sel = "selected" if s == m["status"] else ""
-            status_options += f'<option value="{s}" {sel}>{s.capitalize()}</option>'
+            status_options += f'<option value="{_e(s)}" {sel}>{s.capitalize()}</option>'
 
         return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Edit {m['name']} — Tech Sentinel</title>
+<title>Edit {_e(m['name'])} — Tech Sentinel</title>
 <style>{_render_css(defaults)}
   .form-card {{ background: var(--bg-card); border-radius: 12px; padding: 2rem; margin-top: 1rem;
     border: 1px solid #333750; max-width: 600px; margin-left: auto; margin-right: auto; }}
@@ -807,24 +814,24 @@ def create_status_app() -> FastAPI:
 <div class="container">
   <header><h1>✏️ Edit Monitor</h1></header>
   <div class="form-card">
-    <form action="/manage/edit/{m['id']}" method="post">
+    <form action="/manage/edit/{_e(m['id'])}" method="post">
       <div class="form-group"><label>Name</label>
-        <input type="text" name="name" value="{m['name']}" required></div>
+        <input type="text" name="name" value="{_e(m['name'])}" required></div>
       <div class="form-group"><label>Type</label>
         <select name="monitor_type">{type_options}</select></div>
       <div class="form-group"><label>Target</label>
-        <input type="text" name="target" value="{m['target']}" required></div>
+        <input type="text" name="target" value="{_e(m['target'])}" required></div>
       <div class="form-group"><label>Group</label>
-        <input type="text" name="group_name" value="{m.get('group_name','')}" placeholder="e.g. 📦 NAS Servers"
+        <input type="text" name="group_name" value="{_e(m.get('group_name',''))}" placeholder="e.g. 📦 NAS Servers"
           list="group-list-edit"></div>
       <datalist id="group-list-edit">
         <option value="🖥️ Agents"><option value="📦 NAS Servers"><option value="🌐 Web Services">
         <option value="🖨️ Infrastructure"><option value="📹 Cameras"><option value="🖧 Proxmox">
       </datalist>
       <div class="form-group"><label>Interval (seconds)</label>
-        <input type="number" name="interval_seconds" value="{m['interval_seconds']}" min="10" max="3600"></div>
+        <input type="number" name="interval_seconds" value="{_e(m['interval_seconds'])}" min="10" max="3600"></div>
       <div class="form-group"><label>Timeout (seconds)</label>
-        <input type="number" name="timeout_seconds" value="{m['timeout_seconds']}" min="1" max="120"></div>
+        <input type="number" name="timeout_seconds" value="{_e(m['timeout_seconds'])}" min="1" max="120"></div>
       <div class="form-group"><label>Status</label>
         <select name="status">{status_options}</select></div>
       <div class="btn-row">
@@ -909,11 +916,11 @@ def create_status_app() -> FastAPI:
         checks_rows = ""
         for r in recent:
             s = r["status"]
-            dot = f'<span class="status-dot dot-{s}" style="display:inline-block;vertical-align:middle"></span>'
+            dot = f'<span class="status-dot dot-{_e(s)}" style="display:inline-block;vertical-align:middle"></span>'
             ms = f'{r.get("response_time_ms", 0):.0f}ms' if r.get("response_time_ms") else "-"
             err = r.get("error", "") or ""
             ts = r.get("checked_at", "")[:19]
-            checks_rows += f"<tr><td>{dot} {s}</td><td>{ms}</td><td class='ts'>{ts}</td><td style='color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{err}</td></tr>"
+            checks_rows += f"<tr><td>{dot} {_e(s)}</td><td>{ms}</td><td class='ts'>{ts}</td><td style='color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{_e(err)}</td></tr>"
 
         # Incidents table
         inc_rows = ""
@@ -924,7 +931,7 @@ def create_status_app() -> FastAPI:
                 mins = inc["duration_sec"] / 60
                 duration = f"{mins:.0f}m" if mins < 60 else f"{mins/60:.1f}h"
             resolved = inc.get("resolved_at", "")[:19] if inc.get("resolved_at") else "Ongoing"
-            inc_rows += f"<tr><td>{event_icon} {inc['event']}</td><td class='ts'>{inc.get('started_at','')[:19]}</td><td class='ts'>{resolved}</td><td>{duration}</td><td style='color:#888'>{inc.get('error','')[:60]}</td></tr>"
+            inc_rows += f"<tr><td>{event_icon} {_e(inc['event'])}</td><td class='ts'>{_e(inc.get('started_at','')[:19])}</td><td class='ts'>{resolved}</td><td>{duration}</td><td style='color:#888'>{_e(inc.get('error','')[:60])}</td></tr>"
 
         if not inc_rows:
             inc_rows = '<tr><td colspan="5" style="text-align:center;color:#888;padding:1rem">No incidents recorded</td></tr>'
@@ -943,7 +950,7 @@ def create_status_app() -> FastAPI:
         # Maintenance info
         maint_info = ""
         if mw:
-            maint_info = f'<div style="background:rgba(107,114,128,0.15);color:#9ca3af;padding:0.75rem;border-radius:8px;margin:0.75rem 0">🔧 In maintenance until {mw.get("end_time","")} — {mw.get("reason","")}</div>'
+            maint_info = f'<div style="background:rgba(107,114,128,0.15);color:#9ca3af;padding:0.75rem;border-radius:8px;margin:0.75rem 0">🔧 In maintenance until {_e(mw.get("end_time",""))} — {_e(mw.get("reason",""))}</div>'
 
         type_icons = {"http": "🌐", "tcp": "🔌", "ping": "📡", "heartbeat": "💓"}
         icon = type_icons.get(m["monitor_type"], "📍")
@@ -987,18 +994,18 @@ def create_status_app() -> FastAPI:
                     <div class="detail-card">
                       <h3 style="margin:0 0 0.75rem;font-size:1rem">💻 System Information</h3>
                       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 2rem;font-size:0.9rem">
-                        <div><span style="color:var(--text-secondary)">Hostname:</span> <strong>{si.get('hostname','?')}</strong></div>
-                        <div><span style="color:var(--text-secondary)">IP:</span> {si.get('local_ip','?')}</div>
-                        <div><span style="color:var(--text-secondary)">OS:</span> {os_info.get('distro','') or os_info.get('edition','?')}</div>
-                        <div><span style="color:var(--text-secondary)">Agent:</span> {si.get('agent_type','?')} v{si.get('agent_version','?')}</div>
-                        <div><span style="color:var(--text-secondary)">CPU:</span> {cpu.get('name','?')} ({cpu.get('cores_logical','?')} cores)</div>
+                        <div><span style="color:var(--text-secondary)">Hostname:</span> <strong>{_e(si.get('hostname','?'))}</strong></div>
+                        <div><span style="color:var(--text-secondary)">IP:</span> {_e(si.get('local_ip','?'))}</div>
+                        <div><span style="color:var(--text-secondary)">OS:</span> {_e(os_info.get('distro','') or os_info.get('edition','?'))}</div>
+                        <div><span style="color:var(--text-secondary)">Agent:</span> {_e(si.get('agent_type','?'))} v{_e(si.get('agent_version','?'))}</div>
+                        <div><span style="color:var(--text-secondary)">CPU:</span> {_e(cpu.get('name','?'))} ({cpu.get('cores_logical','?')} cores)</div>
                         <div><span style="color:var(--text-secondary)">CPU Usage:</span> {cpu.get('usage_percent','?')}%</div>
                         <div><span style="color:var(--text-secondary)">RAM:</span> {ram.get('used_gb','?')}/{ram.get('total_gb','?')} GB ({ram.get('percent_used','?')}%)</div>
-                        <div><span style="color:var(--text-secondary)">Uptime:</span> {uptime_info.get('uptime_human','?')}</div>
+                        <div><span style="color:var(--text-secondary)">Uptime:</span> {_e(uptime_info.get('uptime_human','?'))}</div>
                         <div><span style="color:var(--text-secondary)">GPU:</span> {gpu_text}</div>
-                        <div><span style="color:var(--text-secondary)">Python:</span> {si.get('python_version','?')[:20]}</div>
+                        <div><span style="color:var(--text-secondary)">Python:</span> {_e(si.get('python_version','?')[:20])}</div>
                         {"<div><span style='color:var(--text-secondary)'>Load:</span> " + load_text + "</div>" if load_text else ""}
-                        <div><span style="color:var(--text-secondary)">Last Report:</span> {si.get('collected_at','?')[:19]}</div>
+                        <div><span style="color:var(--text-secondary)">Last Report:</span> {_e(si.get('collected_at','?')[:19])}</div>
                       </div>
                       {"<h4 style='margin:1rem 0 0.5rem;font-size:0.9rem'>💾 Disk Usage</h4><table><tr><th>Drive</th><th>Total</th><th>Used</th><th>Free</th><th>Usage</th></tr>" + disk_rows + "</table>" if disk_rows else ""}
                     </div>"""
@@ -1079,10 +1086,10 @@ def create_status_app() -> FastAPI:
                 cmd_rows += (
                     f"<tr>"
                     f"<td>{status_icon} {cmd_st}{exit_display}</td>"
-                    f"<td><code style='font-size:0.8rem'>{cmd.get('command','')[:60]}</code></td>"
+                    f"<td><code style='font-size:0.8rem'>{_e(cmd.get('command','')[:60])}</code></td>"
                     f"<td class='ts'>{(cmd.get('created_at') or '')[:19]}</td>"
                     f"<td style='color:#888;font-size:0.8rem;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer' "
-                    f"onclick=\"this.style.whiteSpace=this.style.whiteSpace==='pre-wrap'?'nowrap':'pre-wrap'\">{output_preview}</td>"
+                    f"onclick=\"this.style.whiteSpace=this.style.whiteSpace==='pre-wrap'?'nowrap':'pre-wrap'\">{_e(output_preview)}</td>"
                     f"</tr>"
                 )
             if not cmd_rows:
@@ -1217,7 +1224,7 @@ def create_status_app() -> FastAPI:
 
         return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{m['name']} — Monitor Detail</title>
+<title>{_e(m['name'])} — Monitor Detail</title>
 <style>{_render_css(defaults)}
   .ws-indicator {{ display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:0.3rem;vertical-align:middle; }}
   .ws-connected {{ background:#22c55e;box-shadow:0 0 4px #22c55e; }}
@@ -1251,8 +1258,8 @@ def create_status_app() -> FastAPI:
   <div class="detail-card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
       <div>
-        <h1 style="font-size:1.4rem;margin:0">{icon} {m['name']}</h1>
-        <p style="color:var(--text-secondary);margin:0.25rem 0">{m['monitor_type'].upper()} &middot; {m['target']}</p>
+        <h1 style="font-size:1.4rem;margin:0">{icon} {_e(m['name'])}</h1>
+        <p style="color:var(--text-secondary);margin:0.25rem 0">{_e(m['monitor_type'].upper())} &middot; {_e(m['target'])}</p>
         {ssl_info}
       </div>
       <div class="status-badge" style="font-size:1.1rem">
@@ -1422,12 +1429,16 @@ function sendWoL(){{
   }}).catch(function(e){{ msg.style.background='rgba(239,68,68,0.15)'; msg.style.color='#ef4444'; msg.textContent='❌ '+e.message; }});
 }}
 
+// ── HTML-escaping helpers (agent/user data must never reach innerHTML raw) ──
+function esc(v){{ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }}
+function jsarg(v){{ return esc(JSON.stringify(String(v==null?'':v))); }}
+
 // ── Services ──
 function loadServices(){{
   document.getElementById('svc-output').innerHTML='<p style="color:#3b82f6">⏳ Loading services from agent...</p>';
   sendStructured('__ts:services',function(err,data){{
-    if(err){{ document.getElementById('svc-output').innerHTML='<p style="color:#ef4444">❌ '+err+'</p>'; return; }}
-    if(data.error){{ document.getElementById('svc-output').innerHTML='<p style="color:#ef4444">❌ '+data.error+'</p>'; return; }}
+    if(err){{ document.getElementById('svc-output').innerHTML='<p style="color:#ef4444">❌ '+esc(err)+'</p>'; return; }}
+    if(data.error){{ document.getElementById('svc-output').innerHTML='<p style="color:#ef4444">❌ '+esc(data.error)+'</p>'; return; }}
     var svcs=data.services||[];
     var h='<p style="color:#888;font-size:0.8rem">'+svcs.length+' services found</p>';
     h+='<table id="svc-table"><thead><tr><th>Status</th><th>Name</th><th>Display Name</th><th>Action</th></tr></thead><tbody>';
@@ -1436,9 +1447,9 @@ function loadServices(){{
       var cls=st==='running'?'svc-running':st==='stopped'?'svc-stopped':'svc-other';
       var icon=st==='running'?'🟢':st==='stopped'?'🔴':'🟡';
       var btns='';
-      if(st==='running') btns='<button onclick="svcAction(\\'stop\\',\\''+s.name+'\\')\" class="qcmd">⏹ Stop</button> <button onclick="svcAction(\\'restart\\',\\''+s.name+'\\')\" class="qcmd">🔄 Restart</button>';
-      else if(st==='stopped'||st==='dead') btns='<button onclick="svcAction(\\'start\\',\\''+s.name+'\\')\" class="qcmd">▶ Start</button>';
-      h+='<tr><td class="'+cls+'">'+icon+' '+st+'</td><td><code>'+s.name+'</code></td><td>'+(s.display_name||'')+'</td><td>'+btns+'</td></tr>';
+      if(st==='running') btns='<button onclick="svcAction(\\'stop\\','+jsarg(s.name)+')" class="qcmd">⏹ Stop</button> <button onclick="svcAction(\\'restart\\','+jsarg(s.name)+')" class="qcmd">🔄 Restart</button>';
+      else if(st==='stopped'||st==='dead') btns='<button onclick="svcAction(\\'start\\','+jsarg(s.name)+')" class="qcmd">▶ Start</button>';
+      h+='<tr><td class="'+cls+'">'+icon+' '+esc(st)+'</td><td><code>'+esc(s.name)+'</code></td><td>'+esc(s.display_name||'')+'</td><td>'+btns+'</td></tr>';
     }});
     h+='</tbody></table>';
     document.getElementById('svc-output').innerHTML=h;
@@ -1457,15 +1468,15 @@ function svcAction(action,name){{
 function loadProcesses(){{
   document.getElementById('proc-output').innerHTML='<p style="color:#3b82f6">⏳ Loading processes from agent...</p>';
   sendStructured('__ts:processes',function(err,data){{
-    if(err){{ document.getElementById('proc-output').innerHTML='<p style="color:#ef4444">❌ '+err+'</p>'; return; }}
-    if(data.error){{ document.getElementById('proc-output').innerHTML='<p style="color:#ef4444">❌ '+data.error+'</p>'; return; }}
+    if(err){{ document.getElementById('proc-output').innerHTML='<p style="color:#ef4444">❌ '+esc(err)+'</p>'; return; }}
+    if(data.error){{ document.getElementById('proc-output').innerHTML='<p style="color:#ef4444">❌ '+esc(data.error)+'</p>'; return; }}
     var procs=data.processes||[];
     var h='<p style="color:#888;font-size:0.8rem">'+procs.length+' processes (top by memory) — Total: '+(data.total||procs.length)+'</p>';
     h+='<table id="proc-table"><thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Memory</th><th>User</th><th>Action</th></tr></thead><tbody>';
     procs.forEach(function(p){{
       var memColor=p.memory_mb>500?'#ef4444':p.memory_mb>100?'#f59e0b':'#e1e4ed';
-      h+='<tr><td>'+p.pid+'</td><td>'+p.name+'</td><td>'+p.cpu_percent+'%</td><td style="color:'+memColor+'">'+p.memory_mb+' MB</td><td style="color:#888">'+((p.username||'').split('\\\\').pop())+'</td>';
-      h+='<td><button onclick="killProc('+p.pid+',\\''+p.name.replace(/'/g,"")+'\\')\" class="qcmd" style="color:#ef4444;border-color:#ef4444">💀 Kill</button></td></tr>';
+      h+='<tr><td>'+esc(p.pid)+'</td><td>'+esc(p.name)+'</td><td>'+esc(p.cpu_percent)+'%</td><td style="color:'+memColor+'">'+esc(p.memory_mb)+' MB</td><td style="color:#888">'+esc((p.username||'').split('\\\\').pop())+'</td>';
+      h+='<td><button onclick="killProc('+jsarg(parseInt(p.pid,10)||0)+','+jsarg(p.name)+')" class="qcmd" style="color:#ef4444;border-color:#ef4444">💀 Kill</button></td></tr>';
     }});
     h+='</tbody></table>';
     document.getElementById('proc-output').innerHTML=h;
@@ -1484,13 +1495,13 @@ function killProc(pid,name){{
 function loadSoftware(){{
   document.getElementById('sw-output').innerHTML='<p style="color:#3b82f6">⏳ Loading installed software from agent...</p>';
   sendStructured('__ts:software',function(err,data){{
-    if(err){{ document.getElementById('sw-output').innerHTML='<p style="color:#ef4444">❌ '+err+'</p>'; return; }}
-    if(data.error){{ document.getElementById('sw-output').innerHTML='<p style="color:#ef4444">❌ '+data.error+'</p>'; return; }}
+    if(err){{ document.getElementById('sw-output').innerHTML='<p style="color:#ef4444">❌ '+esc(err)+'</p>'; return; }}
+    if(data.error){{ document.getElementById('sw-output').innerHTML='<p style="color:#ef4444">❌ '+esc(data.error)+'</p>'; return; }}
     var sw=data.software||[];
     var h='<p style="color:#888;font-size:0.8rem">'+sw.length+' packages installed</p>';
     h+='<table id="sw-table"><thead><tr><th>Name</th><th>Version</th><th>Publisher</th><th>Size</th></tr></thead><tbody>';
     sw.forEach(function(s){{
-      h+='<tr><td>'+s.name+'</td><td><code>'+(s.version||'')+'</code></td><td style="color:#888">'+(s.publisher||'')+'</td><td style="color:#888">'+(s.size||'')+'</td></tr>';
+      h+='<tr><td>'+esc(s.name)+'</td><td><code>'+esc(s.version||'')+'</code></td><td style="color:#888">'+esc(s.publisher||'')+'</td><td style="color:#888">'+esc(s.size||'')+'</td></tr>';
     }});
     h+='</tbody></table>';
     document.getElementById('sw-output').innerHTML=h;
@@ -1501,15 +1512,15 @@ function loadSoftware(){{
 function loadEventLog(){{
   document.getElementById('evtlog-output').innerHTML='<p style="color:#3b82f6">⏳ Loading event log from agent...</p>';
   sendStructured('__ts:eventlog',function(err,data){{
-    if(err){{ document.getElementById('evtlog-output').innerHTML='<p style="color:#ef4444">❌ '+err+'</p>'; return; }}
-    if(data.error){{ document.getElementById('evtlog-output').innerHTML='<p style="color:#ef4444">❌ '+data.error+'</p>'; return; }}
+    if(err){{ document.getElementById('evtlog-output').innerHTML='<p style="color:#ef4444">❌ '+esc(err)+'</p>'; return; }}
+    if(data.error){{ document.getElementById('evtlog-output').innerHTML='<p style="color:#ef4444">❌ '+esc(data.error)+'</p>'; return; }}
     var evts=data.events||[];
     var h='<p style="color:#888;font-size:0.8rem">'+evts.length+' entries</p>';
     h+='<table><thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Message</th></tr></thead><tbody>';
     evts.forEach(function(e){{
       var lc=e.level==='Error'?'#ef4444':e.level==='Warning'?'#f59e0b':'#888';
       var icon=e.level==='Error'?'🔴':e.level==='Warning'?'🟡':'🔵';
-      h+='<tr><td style="white-space:nowrap">'+e.time+'</td><td style="color:'+lc+'">'+icon+' '+e.level+'</td><td>'+e.source+'</td><td style="color:#888;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e.message+'</td></tr>';
+      h+='<tr><td style="white-space:nowrap">'+esc(e.time)+'</td><td style="color:'+lc+'">'+icon+' '+esc(e.level)+'</td><td>'+esc(e.source)+'</td><td style="color:#888;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.message)+'</td></tr>';
     }});
     h+='</tbody></table>';
     document.getElementById('evtlog-output').innerHTML=h;
@@ -1521,23 +1532,24 @@ function browseTo(path){{
   if(!path) path='C:\\\\';
   currentPath=path;
   document.getElementById('path-input').value=path;
-  document.getElementById('files-output').innerHTML='<p style="color:#3b82f6">⏳ Browsing '+path+'...</p>';
+  document.getElementById('files-output').innerHTML='<p style="color:#3b82f6">⏳ Browsing '+esc(path)+'...</p>';
   sendStructured('__ts:ls:'+path,function(err,data){{
-    if(err){{ document.getElementById('files-output').innerHTML='<p style="color:#ef4444">❌ '+err+'</p>'; return; }}
-    if(data.error){{ document.getElementById('files-output').innerHTML='<p style="color:#ef4444">❌ '+data.error+'</p>'; return; }}
+    if(err){{ document.getElementById('files-output').innerHTML='<p style="color:#ef4444">❌ '+esc(err)+'</p>'; return; }}
+    if(data.error){{ document.getElementById('files-output').innerHTML='<p style="color:#ef4444">❌ '+esc(data.error)+'</p>'; return; }}
     currentPath=data.path||path;
     document.getElementById('path-input').value=currentPath;
     var files=data.files||[];
-    var h='<p style="color:#888;font-size:0.8rem">'+files.length+' items in '+currentPath+'</p>';
+    var h='<p style="color:#888;font-size:0.8rem">'+files.length+' items in '+esc(currentPath)+'</p>';
     h+='<table><thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Action</th></tr></thead><tbody>';
     if(data.parent){{
-      h+='<tr><td colspan="4"><a href="#" onclick="browseTo(\\''+data.parent.replace(/\\\\/g,'\\\\\\\\')+'\\')" style="color:#3b82f6">⬆ ..</a></td></tr>';
+      h+='<tr><td colspan="4"><a href="#" onclick="browseTo('+jsarg(data.parent)+')" style="color:#3b82f6">⬆ ..</a></td></tr>';
     }}
     files.forEach(function(f){{
       var icon=f.is_dir?'📁':'📄';
-      var nameHtml=f.is_dir?'<a href="#" onclick="browseTo(\\''+((currentPath.endsWith('\\\\')||currentPath.endsWith('/'))?currentPath:currentPath+'\\\\')+f.name.replace(/\\\\/g,'\\\\\\\\')+'\\')" style="color:#3b82f6">'+icon+' '+f.name+'</a>':icon+' '+f.name;
-      var dl=f.is_dir?'':'<button onclick="downloadFile(\\''+((currentPath.endsWith('\\\\')||currentPath.endsWith('/'))?currentPath:currentPath+'\\\\')+f.name.replace(/\\\\/g,'\\\\\\\\')+'\\')" class="qcmd">⬇ Download</button>';
-      h+='<tr><td>'+nameHtml+'</td><td style="color:#888">'+(!f.is_dir?fmtSize(f.size):'—')+'</td><td style="color:#888">'+(f.modified||'')+'</td><td>'+dl+'</td></tr>';
+      var fullPath=((currentPath.endsWith('\\\\')||currentPath.endsWith('/'))?currentPath:currentPath+'\\\\')+f.name;
+      var nameHtml=f.is_dir?'<a href="#" onclick="browseTo('+jsarg(fullPath)+')" style="color:#3b82f6">'+icon+' '+esc(f.name)+'</a>':icon+' '+esc(f.name);
+      var dl=f.is_dir?'':'<button onclick="downloadFile('+jsarg(fullPath)+')" class="qcmd">⬇ Download</button>';
+      h+='<tr><td>'+nameHtml+'</td><td style="color:#888">'+(!f.is_dir?fmtSize(f.size):'—')+'</td><td style="color:#888">'+esc(f.modified||'')+'</td><td>'+dl+'</td></tr>';
     }});
     h+='</tbody></table>';
     document.getElementById('files-output').innerHTML=h;
@@ -1598,7 +1610,7 @@ function loadMsgHistory(){{
       var icons={{"info":"💬","warning":"⚠️","alert":"🚨"}};
       var stColor=m.status==='delivered'?'#22c55e':'#f59e0b';
       var stIcon=m.status==='delivered'?'✅':'⏳';
-      h+='<tr><td>'+(icons[m.msg_type]||'💬')+' '+m.msg_type+'</td><td>'+m.message+'</td><td class="ts">'+(m.created_at||'').substring(0,19)+'</td><td style="color:'+stColor+'">'+stIcon+' '+m.status+'</td></tr>';
+      h+='<tr><td>'+(icons[m.msg_type]||'💬')+' '+esc(m.msg_type)+'</td><td>'+esc(m.message)+'</td><td class="ts">'+esc((m.created_at||'').substring(0,19))+'</td><td style="color:'+stColor+'">'+stIcon+' '+esc(m.status)+'</td></tr>';
     }});
     h+='</tbody></table>';
     document.getElementById('msg-history').innerHTML=h;
@@ -1657,7 +1669,7 @@ function loadMsgHistory(){{
             var sColor = msg.status==='up'?'#22c55e':(msg.status==='down'?'#ef4444':'#f59e0b');
             var t = new Date(msg.checked_at);
             var tStr = t.toLocaleString(undefined, {{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true}});
-            newRow.innerHTML = '<td><span class="status-dot dot-'+msg.status+'" style="width:8px;height:8px;display:inline-block;vertical-align:middle;margin-right:4px"></span> '+msg.status+'</td><td>'+(msg.response_time_ms?msg.response_time_ms.toFixed(1)+'ms':'—')+'</td><td>'+tStr+'</td><td style="color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+(msg.error||'—')+'</td>';
+            newRow.innerHTML = '<td><span class="status-dot dot-'+esc(msg.status)+'" style="width:8px;height:8px;display:inline-block;vertical-align:middle;margin-right:4px"></span> '+esc(msg.status)+'</td><td>'+(msg.response_time_ms?msg.response_time_ms.toFixed(1)+'ms':'—')+'</td><td>'+tStr+'</td><td style="color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(msg.error||'—')+'</td>';
             newRow.style.background = 'rgba(59,130,246,0.08)';
             setTimeout(function(){{ newRow.style.background=''; }}, 2000);
           }}
@@ -1739,13 +1751,13 @@ function loadMsgHistory(){{
             resolved = inc.get("resolved_at", "")[:19] if inc.get("resolved_at") else '<span style="color:#ef4444">Ongoing</span>'
             channels = ", ".join(json.loads(inc.get("channels_notified", "[]"))) if inc.get("channels_notified") else "-"
             rows += f"""<tr>
-                <td>{event_icon} {inc['event']}</td>
-                <td><strong>{inc.get('monitor_name','?')}</strong></td>
-                <td class="ts">{inc.get('started_at','')[:19]}</td>
+                <td>{event_icon} {_e(inc['event'])}</td>
+                <td><strong>{_e(inc.get('monitor_name','?'))}</strong></td>
+                <td class="ts">{_e(inc.get('started_at','')[:19])}</td>
                 <td class="ts">{resolved}</td>
                 <td>{duration}</td>
                 <td style="color:#888">{channels}</td>
-                <td style="color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{inc.get('error','')[:80]}</td>
+                <td style="color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{_e(inc.get('error','')[:80])}</td>
             </tr>"""
 
         if not rows:
@@ -1806,12 +1818,12 @@ document.querySelectorAll('.ts').forEach(function(el){{
                            "process_kill": "💀", "login": "🔑"}
             icon = action_icons.get(action, "📝")
             rows += f"""<tr>
-                <td class="ts">{(e.get('timestamp',''))[:19]}</td>
+                <td class="ts">{_e((e.get('timestamp',''))[:19])}</td>
                 <td>{icon} {action}</td>
-                <td>{e.get('target_type','')}</td>
-                <td><strong>{e.get('target_name','')}</strong></td>
-                <td style="color:#888;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{e.get('detail','')[:80]}</td>
-                <td style="color:#888">{e.get('user','')}</td>
+                <td>{_e(e.get('target_type',''))}</td>
+                <td><strong>{_e(e.get('target_name',''))}</strong></td>
+                <td style="color:#888;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{_e(e.get('detail','')[:80])}</td>
+                <td style="color:#888">{_e(e.get('user',''))}</td>
             </tr>"""
 
         if not rows:
@@ -1877,9 +1889,9 @@ document.querySelectorAll('.ts').forEach(function(el){{
                 size_str = f"{size} B"
 
             rows += f"""<tr>
-                <td>📄 <strong>{f.get('original_name','?')}</strong></td>
+                <td>📄 <strong>{_e(f.get('original_name','?'))}</strong></td>
                 <td>{size_str}</td>
-                <td style="color:#888">{f.get('description','')}</td>
+                <td style="color:#888">{_e(f.get('description',''))}</td>
                 <td>{f.get('download_count',0)}</td>
                 <td class="ts">{(f.get('created_at',''))[:19]}</td>
                 <td>
